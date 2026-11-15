@@ -125,6 +125,11 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def erro_canal(e: CanalErro):
         raise HTTPException(e.status if 400 <= e.status < 600 else 502, ERROS_PT.get(e.codigo, "A conexão não respondeu agora. Tente de novo."))
 
+    @app.exception_handler(json.JSONDecodeError)
+    @app.exception_handler(UnicodeDecodeError)
+    async def corpo_invalido(request: Request, exc: Exception):
+        return JSONResponse({"detail": "corpo inválido (envie JSON em UTF-8)"}, status_code=400)
+
     @app.get("/health")
     def health():
         return {"ok": True}

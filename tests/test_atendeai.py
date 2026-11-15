@@ -244,3 +244,9 @@ def test_cakto_reembolso_revoga(ambiente):
     c.post("/api/cakto", json={"secret": "ck", "event": "refund", "data": {"id": "ped1", "customer": {"email": "loja@x.com"}, "product": {"id": "p-whats-pro"}}})
     assert not c.get("/api/conta").json()["assinante"]
     assert c.post("/api/cakto", json={"secret": "errado", "event": "x"}).status_code == 401
+
+
+def test_corpo_invalido_da_400(ambiente):
+    c, _, _ = ambiente
+    r = c.put("/api/skill", content="{\"texto\":\"pizza m\xe9dia\"}".encode("latin-1"), headers={"content-type": "application/json"})
+    assert r.status_code == 400
