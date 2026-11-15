@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{NOME}}: atendimento com IA no {{REDE}}</title>
+<meta name="description" content="{{NOME}} responde as {{ATENDE}} do seu negócio 24 horas, com as suas regras, e chama você quando precisa.">
+<link rel="stylesheet" href="/s/estilo.css">
+<style>:root{--marca:{{COR}}}</style>
+</head>
+<body>
+<header class="topo"><div class="wrap">
+  <a class="logo" href="/"><i>AI</i>{{NOME}}</a>
+  <nav style="display:flex;gap:8px"><a class="btn btn-ghost sm" href="#planos">Planos</a><button class="btn btn-pri sm" data-entrar>Entrar</button></nav>
+</div></header>
+
+<main class="wrap">
+  <section class="hero">
+    <div>
+      <span class="selo">Atendimento no {{REDE}}, 24 horas</span>
+      <h1>Seu cliente pergunta. <span>A IA responde</span> do jeito que você ensinou.</h1>
+      <p class="lead">O {{NOME}} lê as {{ATENDE}}, responde preço, horário e dúvida comum com as suas regras, e passa para você quando o assunto é negociação ou reclamação.</p>
+      <div class="ctas"><a class="btn btn-pri grande" href="#planos">Começar agora</a><button class="btn btn-sec grande" data-entrar>Já sou cliente</button></div>
+    </div>
+    <div class="fone" aria-hidden="true">
+      <div class="cab"><span class="av">A</span><div><b>Ana Souza</b><small>online</small></div></div>
+      <div class="bolha cli" style="animation-delay:.2s">Oi! Vocês entregam no Setor Bueno? Quanto fica a pizza grande?<small>21:47</small></div>
+      <div class="bolha ia" style="animation-delay:1.1s">Oi, Ana! Entregamos sim, a taxa no Bueno é R$ 6. A grande sai por R$ 59 e chega em uns 40 minutos. Quer que eu mande o cardápio?<small>21:47 · respondido pela IA</small></div>
+      <div class="bolha cli" style="animation-delay:2.2s">Quero! E dá pra fazer desconto se eu pegar duas?<small>21:48</small></div>
+      <div class="bolha ia" style="animation-delay:3.1s">Vou chamar alguém do time para falar de desconto com você. Só um instante!<small>21:48 · passou para você</small></div>
+    </div>
+  </section>
+
+  <section class="bloco">
+    <h2>Pronto em 10 minutos</h2>
+    <p class="sub">Sem instalar nada e sem trocar de número.</p>
+    <div class="grade passos">
+      <div class="cartao"><h3>Conecte sua conta</h3><p>Siga o passo a passo na tela para conectar.</p></div>
+      <div class="cartao"><h3>Ensine o seu negócio</h3><p>Uma conversa rápida pergunta o que você vende, preços, horários e o que nunca responder. As regras ficam prontas sozinhas.</p></div>
+      <div class="cartao"><h3>Teste antes de ligar</h3><p>Escreva como se fosse um cliente e veja a resposta. Nada é enviado até você ligar o atendimento.</p></div>
+    </div>
+  </section>
+
+  <section class="bloco">
+    <h2>Você continua no controle</h2>
+    <p class="sub">A IA cuida do repetitivo. O que pede uma pessoa vem para você.</p>
+    <div class="grade">
+      <div class="cartao"><div class="ic">◐</div><h3>Assuma quando quiser</h3><p>Um toque e a conversa é sua. A IA para naquela conversa até você devolver.</p></div>
+      <div class="cartao"><div class="ic">◷</div><h3>Horário de atendimento</h3><p>Fora do horário, o cliente recebe a sua mensagem de ausência uma vez, sem enxurrada.</p></div>
+      <div class="cartao"><div class="ic">!</div><h3>Palavras que chamam você</h3><p>"Atendente", "reclamação", "cancelar": você escolhe quais palavras passam direto para uma pessoa.</p></div>
+      <div class="cartao"><div class="ic">≡</div><h3>Não inventa</h3><p>Se a resposta não está nas suas regras, ela não chuta preço nem prazo: chama você.</p></div>
+    </div>
+  </section>
+
+  <section class="bloco" id="planos">
+    <h2>Planos</h2>
+    <p class="sub">Preço de lançamento. Cancele quando quiser.</p>
+    <div class="planos" id="lista-planos"></div>
+  </section>
+
+  <section class="bloco">
+    <h2>Perguntas</h2>
+    <details><summary>Preciso de um número novo?</summary><p>Não. Você conecta a sua conta atual. No WhatsApp, o número continua funcionando normalmente no seu celular.</p></details>
+    <details><summary>Isso é a API oficial?</summary><p>Não. A conexão funciona como mais um aparelho conectado à sua conta. É prático e barato, mas a rede pode pedir que você entre de novo de vez em quando; quando isso acontece, avisamos por e-mail na hora. Leia os <a href="/termos">termos</a>.</p></details>
+    <details><summary>A IA pode responder errado?</summary><p>Ela só usa o que está nas suas regras e chama você quando não sabe. Antes de ligar, você testa quantas vezes quiser.</p></details>
+    <details><summary>Quantas mensagens cabem no plano?</summary><p>Conta só o que a IA responde. As mensagens que você manda pelo painel não entram no limite.</p></details>
+  </section>
+</main>
+
+<footer class="rodape"><div class="wrap">
+  <span>{{NOME}}, um produto Rangel Tech · <a href="/termos">Termos</a></span>
+  <div class="outras" id="outras"></div>
+</div></footer>
+
+<div class="modal" id="m-entrar" hidden role="dialog" aria-modal="true" aria-labelledby="m-tit">
+  <div class="caixa"><button class="x" data-fechar aria-label="Fechar">×</button></div>
+</div>
+<script>window.MARCA = {{MARCA_JSON}}</script>
+<script src="/s/login.js" data-conta="/api/conta" data-destino="/painel"></script>
+<script>
+;(async () => {
+  const $ = (q) => document.querySelector(q)
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+  document.querySelector('.passos .cartao p').textContent = window.MARCA.conecta
+  const j = await (await fetch('/api/marca')).json()
+  $('#lista-planos').innerHTML = j.planos.map((p, i) => `<div class="plano ${i === 1 ? 'destaque' : ''}"><h3>${esc(p.nome)}</h3>
+    <div class="preco">R$ ${p.preco.toFixed(2).replace('.', ',')}<small>/mês</small></div>
+    <ul>${p.itens.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+    ${p.checkout ? `<a class="btn ${i === 1 ? 'btn-pri' : 'btn-sec'}" href="${esc(p.checkout)}">Assinar ${esc(p.nome)}</a>` : `<button class="btn btn-sec" disabled>Em breve</button>`}</div>`).join('')
+  $('#outras').innerHTML = j.outras.map((o) => `<a href="${esc(o.url)}">${esc(o.nome)}</a>`).join('')
+})()
+</script>
+</body>
+</html>
