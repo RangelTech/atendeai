@@ -202,7 +202,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             raise HTTPException(402, f"seu plano permite {r['limite_contas']} conta(s) conectada(s); suba de plano para conectar outra")
         if not b.get("aceite"):
             raise HTTPException(422, "aceite os termos de conexão para continuar")
-        fluxo = b.get("fluxo") if b.get("fluxo") in ("qr", "phone") else None
+        # QR/código de pareamento só existem no WhatsApp; Instagram e Facebook entram por usuário e senha (fluxo padrão do gateway)
+        fluxo = b.get("fluxo") if MARCAS[m]["provider"] == "whatsapp" and b.get("fluxo") in ("qr", "phone") else None
         try:
             view = gw.conectar(conta_gw(u), MARCAS[m]["provider"], str(u["id"]), fluxo)
         except CanalErro as e:

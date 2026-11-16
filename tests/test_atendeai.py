@@ -23,6 +23,7 @@ from app.main import criar_app  # noqa: E402
 class GatewayFalso:
     def __init__(self):
         self.enviadas, self.entregas, self.n = [], [], 0
+        self.fluxos = []
         self.estado = "pending_auth"
 
     def handler(self, req: httpx.Request) -> httpx.Response:
@@ -31,6 +32,7 @@ class GatewayFalso:
         assert req.headers["authorization"] == "Bearer tok"
         if req.method == "POST" and p == "/connections":
             self.n += 1
+            self.fluxos.append(corpo.get("login_flow"))
             return httpx.Response(201, json={"connection": {"id": f"c{self.n}", "state": "pending_auth", "external_label": ""},
                                              "step": {"step_id": "s1", "kind": "qr", "qr": {"data": "2@QRFALSO"}, "wait": {"poll_after_s": 3}}})
         if p.endswith("/delivery"):
@@ -250,3 +252,18 @@ def test_corpo_invalido_da_400(ambiente):
     c, _, _ = ambiente
     r = c.put("/api/skill", content="{\"texto\":\"pizza m\xe9dia\"}".encode("latin-1"), headers={"content-type": "application/json"})
     assert r.status_code == 400
+
+
+def test_fluxo_qr_so_no_whatsapp(tmp_path):
+    """Instagram e Facebook entram por usuário e senha: o painel não pode mandar 'qr' para eles (bug de 16/11)."""
+    gf = GatewayFalso()
+    cfg = Config(dados=str(tmp_path), segredo_sessao="s", dev=True, canais_token="tok", cakto_segredo="ck",
+                 planos_por_produto={"p-w": "whats:pro", "p-i": "insta:pro", "p-f": "face:pro"}, demo_email="")
+    app = criar_app(cfg, gateway=Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler)), llm=llm_falso, sincrono=True)
+    for host, prod, esperado in (("atende-whats", "p-w", "phone"), ("atende-insta", "p-i", None), ("atende-face", "p-f", None)):
+        c = TestClient(app, base_url=f"http://{host}.rangeltech.net")
+        cod = c.post("/api/entrar/codigo", json={"email": "loja@x.com"}).json()["codigo_dev"]
+        c.post("/api/entrar", json={"email": "loja@x.com", "codigo": cod})
+        c.post("/api/cakto", json={"secret": "ck", "event": "purchase_approved", "data": {"id": "ped-" + prod, "customer": {"email": "loja@x.com"}, "product": {"id": prod}}})
+        assert c.post("/api/contas", json={"aceite": True, "fluxo": "phone"}).status_code == 200
+        assert gf.fluxos[-1] == esperado, host

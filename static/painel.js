@@ -183,7 +183,7 @@
       <button class="btn btn-pri" style="width:100%" id="mc-ir">Continuar</button><div class="msg" id="mc-msg"></div>`
     $('#mc-ir').onclick = async () => {
       if (!$('#mc-aceite').checked) return ($('#mc-msg').textContent = 'Marque o aceite para continuar.', $('#mc-msg').className = 'msg erro')
-      try { abrirLogin(await post('/api/contas', { aceite: true, fluxo: $('#mc-par')?.checked ? 'phone' : 'qr' })) } catch (err) { $('#mc-msg').textContent = err.message; $('#mc-msg').className = 'msg erro' }
+      try { abrirLogin(await post('/api/contas', window.MARCA.codigo === 'whats' ? { aceite: true, fluxo: $('#mc-par')?.checked ? 'phone' : 'qr' } : { aceite: true })) } catch (err) { $('#mc-msg').textContent = err.message; $('#mc-msg').className = 'msg erro' }
     }
   }
   function svgQR(dado) {
