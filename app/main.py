@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 
 import httpx
+from starlette.concurrency import run_in_threadpool
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -515,7 +516,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             raise HTTPException(422, "escreva a mensagem do cliente")
         hist = [{"direcao": "entrada" if x.get("de") == "cliente" else "ia", "texto": str(x.get("texto") or "")[:1500]} for x in (b.get("historico") or [])[-10:]]
         s = {**skill_de(u["id"], m), "horario": ""}  # teste ignora o horário
-        return atendente.decidir(texto, hist + [{"direcao": "entrada", "texto": texto}], s, MARCAS[m]["rede"], "ia", 0, agora(), chamar_llm)
+        return await run_in_threadpool(atendente.decidir, texto, hist + [{"direcao": "entrada", "texto": texto}], s, MARCAS[m]["rede"], "ia", 0, agora(), chamar_llm)
 
     @app.post("/api/skill/versoes/{vid}/restaurar")
     def skill_restaurar(vid: int, request: Request):
