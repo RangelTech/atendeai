@@ -17,7 +17,7 @@ from typing import Callable
 
 CAMPOS_SKILL = ["negocio", "produtos_e_precos", "tom", "perguntas_frequentes", "o_que_nunca_responder", "quando_passar_para_humano", "links", "horarios"]
 
-SISTEMA = """Você atende clientes de um negócio pelo {rede}. Siga as REGRAS do dono à risca.
+SISTEMA = """Você atende clientes de um negócio pelo {rede}. Use a skill atendente-de-negocio e siga as REGRAS do dono à risca.
 REGRAS:
 {skill}
 
