@@ -370,6 +370,6 @@
   }
 
   carregarConta().catch(() => {})
-  abrirAba((location.hash || '#conversas').slice(1) in { conversas: 1, regras: 1, contas: 1, plano: 1 } ? location.hash.slice(1) || 'conversas' : 'conversas')
+  abrirAba((location.hash || '#conversas').slice(1) in { conversas: 1, regras: 1, voz: 1, contas: 1, plano: 1 } ? location.hash.slice(1) || 'conversas' : 'conversas')
   setInterval(() => { if (!$('[data-painel=conversas]').hidden && !document.hidden) carregarConversas() }, 8000)
 })()
