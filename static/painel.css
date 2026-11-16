@@ -52,3 +52,6 @@
 .check{display:flex;gap:10px;align-items:flex-start;color:var(--mut);font-size:14px;margin:12px 0}
 .check input{width:auto;margin-top:4px}
 @media (max-width:900px){.duas,.conv-grade{grid-template-columns:1fr}.conv-grade{height:auto}.conv-lista{max-height:260px}.abas{overflow-x:auto}.topo .wrap{height:auto;flex-wrap:wrap;gap:8px;padding:10px 16px}.linha3{grid-template-columns:1fr 1fr}.linha3>div:last-child{grid-column:1/-1}}
+
+.desafio{display:block;max-width:100%;margin:8px auto 4px;border-radius:12px;background:#fff;padding:8px}
+#mc-form select{width:100%;background:var(--bg2,#0d0f13);border:1px solid var(--bd,#1f242d);border-radius:12px;padding:13px 14px;color:inherit;font:inherit}

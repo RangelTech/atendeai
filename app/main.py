@@ -110,7 +110,11 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             if passo:
                 out["passo"] = {"id": passo.get("step_id"), "tipo": passo.get("kind"), "campos": passo.get("fields") or [],
                                 "qr": (passo.get("qr") or {}).get("data"), "codigo_pareamento": passo.get("pairing_code"),
-                                "erro": ERROS_PT.get(passo.get("error_code") or "", passo.get("error_code")), "espera_s": (passo.get("wait") or {}).get("poll_after_s")}
+                                "erro": ERROS_PT.get(passo.get("error_code") or "", passo.get("error_code")), "espera_s": (passo.get("wait") or {}).get("poll_after_s"),
+                                # captcha e afins: a imagem que a própria rede mostra (não é segredo) e o texto dela
+                                "imagens": [f"data:{a.get('mime') or 'image/png'};base64,{a['data']}" for a in (passo.get("attachments") or [])
+                                            if a.get("kind") == "image" and a.get("data")][:2],
+                                "instrucoes": (passo.get("instructions") or "")[:400]}
         return out
 
     def atualizar_de_view(k: dict, view: dict) -> dict:

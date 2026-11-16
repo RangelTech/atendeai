@@ -207,10 +207,17 @@
     } else if (p.codigo_pareamento) {
       corpo.innerHTML = `<h3 id="mc-tit">Código de pareamento</h3><p>No WhatsApp: Aparelhos conectados → Conectar com número de telefone. Digite:</p><div class="cod-par">${esc(p.codigo_pareamento)}</div>${erro}`
     } else if ((p.campos || []).length) {
-      const ROT = { username: 'Usuário ou e-mail', password: 'Senha', '2fa_code': 'Código de verificação', text: 'Resposta', phone: 'Telefone com DDD' }
-      corpo.innerHTML = `<h3 id="mc-tit">${p.tipo === 'code_2fa' ? 'Código de verificação' : 'Entrar na conta'}</h3>
-        <p>${p.tipo === 'code_2fa' ? 'A rede mandou um código para o seu celular ou e-mail.' : 'Digitado só aqui, vai direto para a conexão e não fica guardado.'}</p>
-        <form id="mc-form">${p.campos.map((c) => `<label for="f-${esc(c.id)}">${esc(ROT[c.type] || c.label_key || c.id)}</label><input id="f-${esc(c.id)}" name="${esc(c.id)}" type="${c.secret ? 'password' : 'text'}" autocomplete="off" required>`).join('')}
+      const ROT = { username: 'Usuário ou e-mail', password: 'Senha', '2fa_code': 'Código de verificação', captcha_code: 'Digite os caracteres da imagem', text: 'Resposta', phone_number: 'Telefone com DDD', phone: 'Telefone com DDD', email: 'E-mail', select: 'Escolha' }
+      const TIT = { code_2fa: ['Código de verificação', 'A rede mandou um código para o seu celular ou e-mail.'],
+        captcha: ['Confirme que é você', 'A rede pediu um desafio. Digite exatamente o que aparece na imagem.'],
+        choice: ['Escolha uma opção', 'A rede pediu para você escolher como continuar.'] }
+      const [tit, sub] = TIT[p.tipo] || ['Entrar na conta', 'Digitado só aqui, vai direto para a conexão e não fica guardado.']
+      const imgs = (p.imagens || []).map((src) => `<img class="desafio" src="${src}" alt="Imagem do desafio">`).join('')
+      const campo = (c) => c.type === 'select' && (c.options || []).length
+        ? `<select id="f-${esc(c.id)}" name="${esc(c.id)}" required>${c.options.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}</select>`
+        : `<input id="f-${esc(c.id)}" name="${esc(c.id)}" type="${c.secret ? 'password' : 'text'}" autocomplete="off" required>`
+      corpo.innerHTML = `<h3 id="mc-tit">${tit}</h3><p>${sub}</p>${imgs}
+        <form id="mc-form">${p.campos.map((c) => `<label for="f-${esc(c.id)}">${esc(ROT[c.type] || c.label || c.id)}</label>${campo(c)}`).join('')}
         <button class="btn btn-pri" style="width:100%;margin-top:16px">Continuar</button></form>${erro}`
       $('#mc-form').onsubmit = async (e) => {
         e.preventDefault()
