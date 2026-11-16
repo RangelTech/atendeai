@@ -64,8 +64,25 @@ class Gateway:
     def entrega(self, conta: int, cid: str, url: str, segredo: str) -> dict:
         return self._r("PUT", f"/connections/{cid}/delivery", json={"account_id": conta, "webhook_url": url, "webhook_secret": segredo, "inbox_ref": "atendeai"})
 
-    def enviar(self, conta: int, cid: str, conversa: str, texto: str, chave: str) -> dict:
-        return self._r("POST", f"/connections/{cid}/send", json={"account_id": conta, "idempotency_key": chave, "conversation_ref": conversa, "text": texto})
+    def enviar(self, conta: int, cid: str, conversa: str, texto: str, chave: str, anexos: list[dict] | None = None) -> dict:
+        corpo = {"account_id": conta, "idempotency_key": chave, "conversation_ref": conversa, "text": texto}
+        if anexos:
+            corpo["attachments"] = anexos
+        return self._r("POST", f"/connections/{cid}/send", json=corpo)
+
+    def midia(self, conta: int, cid: str, mxc: str) -> bytes:
+        """Baixa a mídia que o cliente mandou (ex.: áudio para transcrever)."""
+        if not self.token:
+            raise CanalErro(503, "gateway_sem_token")
+        try:
+            with httpx.Client(transport=self.transport, timeout=60) as h:
+                r = h.get(self.url + f"/connections/{cid}/media", params={"account_id": conta, "mxc": mxc},
+                          headers={"Authorization": f"Bearer {self.token}"})
+        except httpx.HTTPError as e:
+            raise CanalErro(503, "gateway_fora") from e
+        if r.status_code >= 400:
+            raise CanalErro(r.status_code, "midia")
+        return r.content
 
 
 def assinatura_ok(segredo: str, ts: str, assinatura: str, corpo: bytes, tolerancia: int = 300, agora: float | None = None) -> bool:

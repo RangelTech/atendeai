@@ -57,3 +57,4 @@
 #mc-form select{width:100%;background:var(--bg2,#0d0f13);border:1px solid var(--bd,#1f242d);border-radius:12px;padding:13px 14px;color:inherit;font:inherit}
 .btn.perigo{color:#f87171}
 .btn.perigo:hover{border-color:#f87171}
+.sel-voz{background:var(--card2,#1b1f26);color:inherit;border:1px solid var(--bd,#1f242d);border-radius:12px;padding:8px 10px;font:inherit;font-size:13px}

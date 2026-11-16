@@ -159,10 +159,18 @@
       <div class="acoes">
         ${k.estado === 'connected' ? '' : `<button class="btn btn-pri sm" data-k="${k.id}" data-a="${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'continuar' : 'reconectar'}">${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'Continuar' : 'Reconectar'}</button>`}
         <button class="btn btn-sec sm" data-k="${k.id}" data-a="${k.ia_ligada ? 'desligar_ia' : 'ligar_ia'}">${k.ia_ligada ? 'Pausar IA' : 'Ligar IA'}</button>
+        ${window.MARCA.codigo === 'whats' ? `<select class="sel-voz" data-voz="${k.id}" title="Responder em áudio com a sua voz (plano Voz)">
+          <option value="desligado" ${k.voz_modo === 'desligado' ? 'selected' : ''}>Respostas em texto</option>
+          <option value="quando_audio" ${k.voz_modo === 'quando_audio' ? 'selected' : ''}>Áudio quando o cliente mandar áudio</option>
+          <option value="sempre" ${k.voz_modo === 'sempre' ? 'selected' : ''}>Sempre em áudio</option></select>` : ''}
         <button class="btn btn-ghost sm" data-k="${k.id}" data-a="${k.modo_teste ? 'desligar_teste' : 'ligar_teste'}" title="Com o modo teste, a IA só responde as conversas que você liberar">${k.modo_teste ? 'Sair do modo teste' : 'Modo teste'}</button>
         ${k.estado === 'connected' ? `<button class="btn btn-ghost sm" data-k="${k.id}" data-a="desconectar">Desconectar</button>` : ''}
         <button class="btn btn-ghost sm perigo" data-k="${k.id}" data-a="excluir">Excluir</button></div></div>`).join('')
       : `<p class="vazio">Nenhuma conta conectada. ${esc(window.MARCA.conecta)}</p>`
+    $$('[data-voz]').forEach((sel) => (sel.onchange = async () => {
+      try { await post(`/api/contas/${sel.dataset.voz}/voz_${sel.value}`) } catch (err) { alert(err.message) }
+      carregarContas()
+    }))
     $$('[data-k]').forEach((b) => (b.onclick = async () => {
       const id = b.dataset.k, a = b.dataset.a
       if (a === 'desconectar' && !confirm('Desconectar esta conta? A IA para de responder até você conectar de novo.')) return

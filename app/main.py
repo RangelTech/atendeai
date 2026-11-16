@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 
 from app import atendente, auth, mailer, senha_rotas
+from app import voz as voz_mod
 from app.canais import CanalErro, Gateway, assinatura_ok
 from app.config import Config, carregar
 from app.db import Banco, agora
@@ -36,11 +37,12 @@ ERROS_PT = {"wrong_password": "Usuário ou senha errados.", "wrong_code": "Códi
             "unsupported_step": "Essa etapa ainda não é suportada.", "consent_required": "Aceite os termos para conectar."}
 
 
-def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=None, sincrono: bool = False) -> FastAPI:
+def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=None, sincrono: bool = False, voz: voz_mod.Voz | None = None) -> FastAPI:
     cfg = cfg or carregar()
     Path(cfg.dados).mkdir(parents=True, exist_ok=True)
     db = Banco(os.path.join(cfg.dados, "atendeai.db"))
     gw = gateway or Gateway(cfg.canais_url, cfg.canais_token)
+    vz = voz or voz_mod.Voz(cfg.voz_base, cfg.voz_token)
     app = FastAPI(title="Atende AI", docs_url=None, redoc_url=None, openapi_url=None)
     app.state.cfg, app.state.db, app.state.gw = cfg, db, gw
 
@@ -105,7 +107,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def vista_conta(k: dict, view: dict | None = None) -> dict:
         out = {"id": k["id"], "marca": k["marca"], "provider": k["provider"], "estado": k["estado"], "estado_pt": ESTADOS_PT.get(k["estado"], k["estado"]),
                "rotulo": k["rotulo"], "ia_ligada": bool(k["ia_ligada"]), "criado": k["criado"], "ja_conectou": bool(k.get("ja_conectou")),
-               "modo_teste": bool(k.get("so_liberadas"))}
+               "modo_teste": bool(k.get("so_liberadas")), "voz_modo": k.get("voz_modo") or "desligado", "voz_pronta": bool(k.get("voz_id"))}
         if view:
             passo = view.get("step") or {}
             if passo:
@@ -281,6 +283,12 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 view = gw.desconectar(conta_gw(u), cid, str(u["id"]))
             elif acao == "reconectar":
                 view = gw.reconectar(conta_gw(u), cid, str(u["id"]))
+            elif acao.startswith("voz_"):  # voz_desligado | voz_quando_audio | voz_sempre
+                modo = acao[4:]
+                if modo not in ("desligado", "quando_audio", "sempre"):
+                    raise HTTPException(404, "modo de voz desconhecido")
+                db.exec("UPDATE contas SET voz_modo=? WHERE id=?", (modo, cid))
+                return vista_conta(db.um("SELECT * FROM contas WHERE id=?", (cid,)))
             elif acao in ("ligar_teste", "desligar_teste"):
                 db.exec("UPDATE contas SET so_liberadas=? WHERE id=?", (1 if acao == "ligar_teste" else 0, cid))
                 return vista_conta(db.um("SELECT * FROM contas WHERE id=?", (cid,)))
@@ -297,8 +305,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def skill_de(uid: int, marca: str) -> dict:
         return db.um("SELECT * FROM skills WHERE usuario=? AND marca=?", (uid, marca)) or {"texto": "", "horario": "", "palavras_humano": "atendente,humano,pessoa,reclamação", "fora_horario": ""}
 
-    def responder(conversa_id: int, texto: str) -> None:
-        c = db.um("SELECT c.*, k.usuario, k.marca, k.ia_ligada, k.estado, k.so_liberadas FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=?", (conversa_id,))
+    def responder(conversa_id: int, texto: str, veio_audio: bool = False) -> None:
+        c = db.um("SELECT c.*, k.usuario, k.marca, k.ia_ligada, k.estado, k.so_liberadas, k.voz_modo, k.voz_id FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=?", (conversa_id,))
         if not c or not c["ia_ligada"] or c["estado"] != "connected" and not cfg.dev:
             return
         if c["so_liberadas"] and not c["liberada"]:
@@ -316,12 +324,19 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if not d["texto"]:
             return
         chave = hashlib.sha256(f"{conversa_id}:{texto}:{time.time_ns()}".encode()).hexdigest()[:32]
+        anexos, registro = None, d["texto"]
+        if vz.ligada and (c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
+            try:  # nota de voz na voz do dono (rt-voz, GPU própria); se falhar, vai em texto
+                ogg, ms = vz.falar(d["texto"], c["voz_id"] or None)
+                anexos, registro = [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"]
+            except Exception as e:  # noqa: BLE001
+                log.warning("voz falhou na conversa %s (vai texto): %s", conversa_id, e)
         try:
-            gw.enviar(cfg.conta_base + int(c["usuario"]), c["conta"], c["externo"], d["texto"], chave)
+            gw.enviar(cfg.conta_base + int(c["usuario"]), c["conta"], c["externo"], "" if anexos else d["texto"], chave, anexos)
         except CanalErro as e:
             log.warning("envio falhou na conversa %s: %s", conversa_id, e)
             return
-        db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado) VALUES(?,?,?,?,?)", (conversa_id, "ia:" + chave, "ia", d["texto"], agora()))
+        db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado) VALUES(?,?,?,?,?)", (conversa_id, "ia:" + chave, "ia", registro, agora()))
 
     @app.post("/hooks/canal/{cid}")
     async def webhook_canal(cid: str, request: Request, tarefas: BackgroundTasks):
@@ -366,11 +381,24 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             return {"ok": True, "repetido": True}
         if direcao == "entrada":
             db.exec("UPDATE conversas SET nao_lidas=nao_lidas+1 WHERE id=?", (c["id"],))
+            audio = next((a for a in msg.get("attachments") or [] if a.get("kind") == "audio" and a.get("url")), None)
+            ext = str(msg.get("external_id") or eid)
             if sincrono:
-                responder(c["id"], texto)
+                processar_entrada(k, c["id"], ext, texto, audio)
             else:
-                tarefas.add_task(responder, c["id"], texto)
+                tarefas.add_task(processar_entrada, k, c["id"], ext, texto, audio)
         return {"ok": True}
+
+    def processar_entrada(k: dict, conversa_id: int, ext: str, texto: str, audio: dict | None) -> None:
+        """Áudio do cliente vira texto (Whisper na GPU própria) ou é reconhecido como música antes da IA decidir."""
+        if audio and vz.ligada:
+            try:
+                dados = gw.midia(cfg.conta_base + int(k["usuario"]), k["id"], audio["url"])
+                texto = voz_mod.texto_da_entrada(vz.ouvir(dados, audio.get("name") or "audio.ogg"))
+                db.exec("UPDATE mensagens SET texto=? WHERE conversa=? AND externo=?", (texto[:4000], conversa_id, ext))
+            except Exception as e:  # noqa: BLE001
+                log.warning("não consegui ouvir o áudio da conversa %s: %s", conversa_id, e)
+        responder(conversa_id, texto, veio_audio=bool(audio))
 
     # ------------------------------------------------ conversas (painel)
     @app.get("/api/conversas")

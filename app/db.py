@@ -94,6 +94,9 @@ class Banco:
             self.con.execute("UPDATE contas SET ja_conectou=1 WHERE estado IN ('connected','degraded','reauth_required')")
         if "so_liberadas" not in cols:  # modo teste: a IA só responde conversas liberadas uma a uma (16/11)
             self.con.execute("ALTER TABLE contas ADD COLUMN so_liberadas INTEGER NOT NULL DEFAULT 0")
+        if "voz_modo" not in cols:  # resposta em áudio: desligado | quando_audio | sempre (plano Voz, 16/11)
+            self.con.execute("ALTER TABLE contas ADD COLUMN voz_modo TEXT NOT NULL DEFAULT 'desligado'")
+            self.con.execute("ALTER TABLE contas ADD COLUMN voz_id TEXT NOT NULL DEFAULT ''")
         ccols = {r[1] for r in self.con.execute("PRAGMA table_info(conversas)")}
         if "liberada" not in ccols:
             self.con.execute("ALTER TABLE conversas ADD COLUMN liberada INTEGER NOT NULL DEFAULT 0")

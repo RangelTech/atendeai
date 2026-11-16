@@ -24,6 +24,7 @@ class GatewayFalso:
     def __init__(self):
         self.enviadas, self.entregas, self.n = [], [], 0
         self.fluxos = []
+        self.midias = []
         self.estado = "pending_auth"
 
     def handler(self, req: httpx.Request) -> httpx.Response:
@@ -38,6 +39,9 @@ class GatewayFalso:
         if p.endswith("/delivery"):
             self.entregas.append(corpo)
             return httpx.Response(200, json={"ok": True})
+        if p.endswith("/media"):
+            self.midias.append(dict(req.url.params))
+            return httpx.Response(200, content=b"OggS-cliente", headers={"content-type": "audio/ogg"})
         if p.endswith("/send"):
             self.enviadas.append(corpo)
             return httpx.Response(200, json={"status": "queued"})
@@ -307,3 +311,48 @@ def test_resposta_parcial_responde_e_chama_o_dono():
     d = decidir("Entregam no Bueno? Quanto é a grande?", [], {"texto": "Grande R$ 59", "horario": "", "palavras_humano": "", "fora_horario": ""},
                 "WhatsApp", "ia", 0, time.time(), lambda m: "A grande sai por R$ 59. Sobre o Bueno, vou confirmar com o time. [CHAMAR]")
     assert d["acao"] == "humano" and d["texto"] == "A grande sai por R$ 59. Sobre o Bueno, vou confirmar com o time."
+
+
+
+class VozFalsa:
+    ligada = True
+
+    def __init__(self):
+        self.ouvidos, self.faladas = [], []
+
+    def ouvir(self, dados, nome="audio.ogg"):
+        self.ouvidos.append(dados)
+        return {"tipo": "fala", "texto": "quanto custa a pizza grande?", "musica": None}
+
+    def falar(self, texto, voz):
+        self.faladas.append((texto, voz))
+        return b"OggS-resposta", 2300
+
+
+def test_audio_entra_transcrito_e_sai_nota_de_voz(tmp_path):
+    from app.voz import texto_da_entrada
+    gf, vf = GatewayFalso(), VozFalsa()
+    cfg = Config(dados=str(tmp_path), segredo_sessao="s", dev=True, canais_token="tok", cakto_segredo="ck",
+                 planos_por_produto={"p-whats-pro": "whats:pro"}, demo_email="")
+    app = criar_app(cfg, gateway=Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler)), llm=llm_falso, sincrono=True, voz=vf)
+    c = TestClient(app, base_url="http://atende-whats.rangeltech.net")
+    cod = c.post("/api/entrar/codigo", json={"email": "loja@x.com"}).json()["codigo_dev"]
+    c.post("/api/entrar", json={"email": "loja@x.com", "codigo": cod})
+    cid, seg = preparar_conta(c, app)
+    app.state.db.exec("UPDATE contas SET voz_id='dono' WHERE id=?", (cid,))
+    assert c.post(f"/api/contas/{cid}/voz_quando_audio").json()["voz_modo"] == "quando_audio"
+    corpo = json.dumps({"event_id": "a1", "type": "message.created", "conversation": {"external_id": "x@lid", "contact": {"name": ""}},
+                        "message": {"external_id": "ma1", "direction": "incoming", "text": "",
+                                    "attachments": [{"kind": "audio", "mime": "audio/ogg", "name": "a.ogg", "url": "mxc://s/1"}]}}).encode()
+    assert c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo)).json()["ok"]
+    assert gf.midias[-1]["mxc"] == "mxc://s/1" and vf.ouvidos == [b"OggS-cliente"]
+    assert vf.faladas == [("A pizza grande custa R$ 59.", "dono")]
+    env = gf.enviadas[-1]
+    assert env["text"] == "" and env["attachments"][0]["kind"] == "audio" and env["attachments"][0]["duration_ms"] == 2300
+    msgs = c.get("/api/conversas/1").json()["mensagens"]
+    assert msgs[0]["texto"] == "[áudio] quanto custa a pizza grande?" and msgs[-1]["texto"].startswith("[áudio] A pizza")
+    # texto continua indo em texto quando o modo é "quando_audio"
+    corpo = evento("t9", "e a média?", conversa="x@lid")
+    c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo))
+    assert gf.enviadas[-1]["text"] and "attachments" not in gf.enviadas[-1]
+    assert texto_da_entrada({"tipo": "musica", "musica": {"titulo": "Evidências", "artista": "Chitãozinho & Xororó"}}).startswith("[o cliente mandou")

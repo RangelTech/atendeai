@@ -32,6 +32,8 @@ class Config:
     demo_senha: str = ""
     lancamento_ate: str = "2026-12-15"
     dev: bool = False
+    voz_base: str = ""        # servidor de voz (rt-voz) pela rede interna; vazio = sem voz
+    voz_token: str = ""
 
 
 def carregar() -> Config:
@@ -58,6 +60,8 @@ def carregar() -> Config:
         admin_key=e("ATENDEAI_ADMIN_KEY", ""),
         demo_email=e("ATENDEAI_DEMO_EMAIL", ""),
         demo_senha=e("ATENDEAI_DEMO_SENHA", ""),
+        voz_base=e("ATENDEAI_VOZ_BASE", "").rstrip("/"),
+        voz_token=e("ATENDEAI_VOZ_TOKEN", ""),
         lancamento_ate=e("ATENDEAI_LANCAMENTO_ATE", "2026-12-15"),
         dev=e("ATENDEAI_DEV", "") == "1",
     )
