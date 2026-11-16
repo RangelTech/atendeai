@@ -5,90 +5,146 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{NOME}}: atendimento com IA no {{REDE}}</title>
 <meta name="description" content="{{NOME}} responde as {{ATENDE}} do seu negócio 24 horas, com as suas regras, e chama você quando precisa.">
+<meta property="og:title" content="{{NOME}}: seu cliente pergunta, a IA responde">
+<meta property="og:description" content="Atendimento no {{REDE}} 24 horas, com as suas regras. Pronto em 10 minutos.">
 <link rel="stylesheet" href="/s/estilo.css">
+<link rel="stylesheet" href="/s/cinema.css">
 <style>:root{--marca:{{COR}}}</style>
 </head>
 <body>
 <header class="topo"><div class="wrap">
   <a class="logo" href="/"><i>AI</i>{{NOME}}</a>
-  <nav style="display:flex;gap:8px"><a class="btn btn-ghost sm" href="#planos">Planos</a><button class="btn btn-pri sm" data-entrar>Entrar</button></nav>
+  <nav><a class="lnk" href="#veja">Exemplos</a><a class="lnk" href="#como">Como funciona</a><a class="lnk" href="#planos">Planos</a><a class="lnk" href="#duvidas">Dúvidas</a><button class="btn btn-sec" data-entrar>Entrar</button></nav>
 </div></header>
 
-<main class="wrap">
-  <section class="hero">
+<main>
+<section class="heroi">
+  <div class="aurora" aria-hidden="true"></div><div class="grade-fina" aria-hidden="true"></div>
+  <div class="wrap heroi-split">
     <div>
-      <span class="selo">Atendimento no {{REDE}}, 24 horas</span>
-      <h1>Seu cliente pergunta. <span>A IA responde</span> do jeito que você ensinou.</h1>
-      <p class="lead">O {{NOME}} lê as {{ATENDE}}, responde preço, horário e dúvida comum com as suas regras, e passa para você quando o assunto é negociação ou reclamação.</p>
-      <div class="ctas"><a class="btn btn-pri grande" href="#planos">Começar agora</a><button class="btn btn-sec grande" data-entrar>Já sou cliente</button></div>
+      <span class="selo"><b></b>Atendimento no {{REDE}}, 24 horas por dia</span>
+      <h1>Seu cliente pergunta. <em>A IA responde</em> do seu jeito.</h1>
+      <p class="lead">O {{NOME}} lê as {{ATENDE}}, responde preço, horário e dúvida comum com as regras que você ensinou, e passa para você quando o assunto é negociação ou reclamação.</p>
+      <div class="ctas"><a class="btn btn-pri btn-lg pulsa" href="#planos">Quero atender 24 horas</a><a class="btn btn-sec btn-lg" href="#veja">Ver conversas reais</a></div>
+      <div class="numeros">
+        <div><b>10 min</b><span>para deixar pronto</span></div>
+        <div><b>24 h</b><span>respondendo, inclusive de madrugada</span></div>
+        <div><b>0</b><span>chute de preço: se não sabe, chama você</span></div>
+      </div>
     </div>
-    <div class="fone" aria-hidden="true">
-      <div class="cab"><span class="av">A</span><div><b>Ana Souza</b><small>online</small></div></div>
-      <div class="bolha cli" style="animation-delay:.2s">Oi! Vocês entregam no Setor Bueno? Quanto fica a pizza grande?<small>21:47</small></div>
-      <div class="bolha ia" style="animation-delay:1.1s">Oi, Ana! Entregamos sim, a taxa no Bueno é R$ 6. A grande sai por R$ 59 e chega em uns 40 minutos. Quer que eu mande o cardápio?<small>21:47 · respondido pela IA</small></div>
-      <div class="bolha cli" style="animation-delay:2.2s">Quero! E dá pra fazer desconto se eu pegar duas?<small>21:48</small></div>
-      <div class="bolha ia" style="animation-delay:3.1s">Vou chamar alguém do time para falar de desconto com você. Só um instante!<small>21:48 · passou para você</small></div>
+    <div class="cel" aria-hidden="true"><div class="tela" data-conversa>
+      <div class="cab"><span class="av">P</span><div><b>Pizzaria Forno Velho</b><small>online</small></div></div>
+      <div class="msg-b cli">Oi! Vocês entregam no Setor Bueno? Quanto fica a pizza grande?<small>23:47</small></div>
+      <div class="msg-b ia">Oi, Ana! Entregamos sim, a taxa no Bueno é R$ 6. A grande sai por R$ 59 e chega em uns 40 minutos. Quer o cardápio?<small>23:47 · IA</small></div>
+      <div class="msg-b cli">Quero! E dá desconto se eu pegar duas?<small>23:48</small></div>
+      <div class="msg-b ia">Desconto quem decide é o dono 😉 Já chamei ele aqui, só um instante!<small>23:48 · passou para você</small></div>
+    </div></div>
+  </div>
+</section>
+
+<div class="faixa" aria-hidden="true"><div>
+  <span>Pizzaria</span><span>Clínica</span><span>Loja de roupa</span><span>Cantor e banda</span><span>Barbearia</span><span>Imobiliária</span><span>Curso online</span><span>Oficina</span>
+  <span>Pizzaria</span><span>Clínica</span><span>Loja de roupa</span><span>Cantor e banda</span><span>Barbearia</span><span>Imobiliária</span><span>Curso online</span><span>Oficina</span>
+</div></div>
+
+<section class="bloco" id="veja"><div class="wrap">
+  <div class="olho">Conversas de verdade</div>
+  <h2 class="rev">Ela responde como alguém do seu time.</h2>
+  <p class="sub rev">Responde o que está nas suas regras, com educação e no tom do seu negócio. E sabe a hora de chamar você.</p>
+  <div class="conversas">
+    <div class="conversa rev"><span class="nicho">Show sertanejo</span><h3>Diego, cantor</h3>
+      <div class="msg-b cli">Qual o valor pra fazer um show no meu casamento em Anápolis dia 20?</div>
+      <div class="msg-b ia">Que alegria! O Diego faz show de casamento com voz e violão (2 h) ou com banda (3 h). Me passa o horário e o local que eu já vejo a agenda do dia 20 e mando o valor com o deslocamento.</div>
+      <div class="msg-b cli">Às 21h, chácara Recanto Verde.</div>
+      <div class="msg-b ia">Anotado! Vou passar para o empresário fechar com você ainda hoje.</div></div>
+    <div class="conversa rev"><span class="nicho">Clínica</span><h3>Clínica Sorriso Pleno</h3>
+      <div class="msg-b cli">Vocês atendem convênio? Quero marcar limpeza.</div>
+      <div class="msg-b ia">Atendemos Odontoprev e Amil Dental. A limpeza tem horário amanhã às 9h ou 14h30. Qual fica melhor?</div>
+      <div class="msg-b cli">14h30. E o clareamento quanto é?</div>
+      <div class="msg-b ia">Reservei 14h30 para você. O clareamento depende da avaliação; a dentista te passa o valor na consulta, sem compromisso.</div></div>
+    <div class="conversa rev"><span class="nicho">Loja de roupa</span><h3>Bella Moda</h3>
+      <div class="msg-b cli">Tem o vestido midi verde no M?</div>
+      <div class="msg-b ia">Tem sim! Último M no verde. Sai por R$ 149,90 e envio hoje se pagar até 16h. Quer o link do Pix?</div>
+      <div class="msg-b cli">Quero, mas ele chegou com defeito da outra vez 😡</div>
+      <div class="msg-b ia">Poxa, sinto muito. Vou chamar a Bella agora para resolver isso com você pessoalmente.</div></div>
+  </div>
+</div></section>
+
+<section class="bloco" id="voz" hidden><div class="wrap">
+  <div class="destaque-voz rev">
+    <div>
+      <div class="olho">Plano Voz · só no WhatsApp</div>
+      <h2>Responde em áudio. Com a <em style="font-style:normal;color:var(--ac)">sua voz</em>.</h2>
+      <p class="sub" style="margin-bottom:24px">Você grava 10 minutos uma única vez. A partir daí a IA entende os áudios que chegam e responde em áudio com a sua voz e o seu jeito de falar. Reconhece a música que o cliente mandou e, se você quiser, canta um trecho no tom certo.</p>
+      <a class="btn btn-pri btn-lg" href="#planos">Quero a minha voz</a>
     </div>
-  </section>
+    <div class="cel" aria-hidden="true" style="width:min(320px,100%)"><div class="tela" style="min-height:380px" data-conversa>
+      <div class="cab"><span class="av">D</span><div><b>Diego Alves</b><small>gravando áudio…</small></div></div>
+      <div class="msg-b cli"><div class="audio"><i>▶</i><div class="onda"><span></span><span style="animation-delay:.1s"></span><span style="animation-delay:.2s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.15s"></span><span style="animation-delay:.25s"></span><span style="animation-delay:.05s"></span></div></div><small>0:12 · "Diego, toca aquela do Chitãozinho no show?"</small></div>
+      <div class="msg-b ia"><div class="audio"><i>▶</i><div class="onda"><span></span><span style="animation-delay:.2s"></span><span style="animation-delay:.1s"></span><span style="animation-delay:.3s"></span><span style="animation-delay:.05s"></span><span style="animation-delay:.25s"></span><span style="animation-delay:.15s"></span><span style="animation-delay:.35s"></span></div></div><small>0:18 · resposta na voz do Diego</small></div>
+    </div></div>
+  </div>
+</div></section>
 
-  <section class="bloco">
-    <h2>Pronto em 10 minutos</h2>
-    <p class="sub">Sem instalar nada e sem trocar de número.</p>
-    <div class="grade passos">
-      <div class="cartao"><h3>Conecte sua conta</h3><p>Siga o passo a passo na tela para conectar.</p></div>
-      <div class="cartao"><h3>Ensine o seu negócio</h3><p>Uma conversa rápida pergunta o que você vende, preços, horários e o que nunca responder. As regras ficam prontas sozinhas.</p></div>
-      <div class="cartao"><h3>Teste antes de ligar</h3><p>Escreva como se fosse um cliente e veja a resposta. Nada é enviado até você ligar o atendimento.</p></div>
-    </div>
-  </section>
+<section class="bloco" id="como" style="background:var(--bg2)"><div class="wrap">
+  <div class="olho">Como funciona</div>
+  <h2 class="rev">Pronto em 10 minutos. Sem trocar de número.</h2>
+  <p class="sub rev">Nada para instalar. Você conecta, ensina e testa antes de ligar.</p>
+  <div class="passos">
+    <div class="passo rev"><h3>Conecte sua conta</h3><p id="conecta">Siga o passo a passo na tela para conectar.</p></div>
+    <div class="passo rev"><h3>Ensine o seu negócio</h3><p>Uma conversa rápida pergunta o que você vende, preços, horários e o que nunca responder. As regras ficam prontas sozinhas.</p></div>
+    <div class="passo rev"><h3>Teste e ligue</h3><p>Escreva como se fosse um cliente e veja a resposta. Nada é enviado até você ligar o atendimento.</p></div>
+  </div>
+</div></section>
 
-  <section class="bloco">
-    <h2>Você continua no controle</h2>
-    <p class="sub">A IA cuida do repetitivo. O que pede uma pessoa vem para você.</p>
-    <div class="grade">
-      <div class="cartao"><div class="ic">◐</div><h3>Assuma quando quiser</h3><p>Um toque e a conversa é sua. A IA para naquela conversa até você devolver.</p></div>
-      <div class="cartao"><div class="ic">◷</div><h3>Horário de atendimento</h3><p>Fora do horário, o cliente recebe a sua mensagem de ausência uma vez, sem enxurrada.</p></div>
-      <div class="cartao"><div class="ic">!</div><h3>Palavras que chamam você</h3><p>"Atendente", "reclamação", "cancelar": você escolhe quais palavras passam direto para uma pessoa.</p></div>
-      <div class="cartao"><div class="ic">≡</div><h3>Não inventa</h3><p>Se a resposta não está nas suas regras, ela não chuta preço nem prazo: chama você.</p></div>
-    </div>
-  </section>
+<section class="bloco"><div class="wrap">
+  <div class="olho">Você no controle</div>
+  <h2 class="rev">A IA cuida do repetitivo. O que pede uma pessoa vem para você.</h2>
+  <div class="grade" style="margin-top:40px">
+    <div class="beneficio rev"><div class="ic">◐</div><h3>Assuma quando quiser</h3><p>Um toque e a conversa é sua. A IA para naquela conversa até você devolver.</p></div>
+    <div class="beneficio rev"><div class="ic">◷</div><h3>Horário de atendimento</h3><p>Fora do horário, o cliente recebe a sua mensagem de ausência uma vez, sem enxurrada.</p></div>
+    <div class="beneficio rev"><div class="ic">!</div><h3>Palavras que chamam você</h3><p>"Atendente", "reclamação", "cancelar": você escolhe o que passa direto para uma pessoa.</p></div>
+    <div class="beneficio rev"><div class="ic">≡</div><h3>Não inventa</h3><p>Se a resposta não está nas suas regras, ela não chuta preço nem prazo: chama você.</p></div>
+  </div>
+</div></section>
 
-  <section class="bloco" id="planos">
-    <h2>Planos</h2>
-    <p class="sub">Preço de lançamento. Cancele quando quiser.</p>
-    <div class="planos" id="lista-planos"></div>
-  </section>
+<section class="bloco" id="planos" style="background:var(--bg2)"><div class="wrap">
+  <div class="olho">Planos</div>
+  <h2 class="rev">Menos que um estagiário. Trabalha 24 horas.</h2>
+  <p class="sub rev">Preço de lançamento. Cancele quando quiser, pela própria Cakto.</p>
+  <div class="planos" data-planos="/api/marca" data-destaque="1"></div>
+</div></section>
 
-  <section class="bloco">
-    <h2>Perguntas</h2>
-    <details><summary>Preciso de um número novo?</summary><p>Não. Você conecta a sua conta atual. No WhatsApp, o número continua funcionando normalmente no seu celular.</p></details>
-    <details><summary>Isso é a API oficial?</summary><p>Não. A conexão funciona como mais um aparelho conectado à sua conta. É prático e barato, mas a rede pode pedir que você entre de novo de vez em quando; quando isso acontece, avisamos por e-mail na hora. Leia os <a href="/termos">termos</a>.</p></details>
-    <details><summary>A IA pode responder errado?</summary><p>Ela só usa o que está nas suas regras e chama você quando não sabe. Antes de ligar, você testa quantas vezes quiser.</p></details>
-    <details><summary>Quantas mensagens cabem no plano?</summary><p>Conta só o que a IA responde. As mensagens que você manda pelo painel não entram no limite.</p></details>
-  </section>
+<section class="bloco" id="duvidas"><div class="wrap" style="max-width:860px">
+  <div class="olho">Dúvidas</div>
+  <h2 style="margin-bottom:24px">Perguntas frequentes</h2>
+  <details><summary>Preciso de um número novo?</summary><p>Não. Você conecta a sua conta atual. No WhatsApp, o número continua funcionando normalmente no seu celular.</p></details>
+  <details><summary>Isso é a API oficial?</summary><p>Não. A conexão funciona como mais um aparelho conectado à sua conta. É prático e barato, mas a rede pode pedir que você entre de novo de vez em quando; quando isso acontece, avisamos por e-mail na hora. Leia os <a href="/termos">termos</a>.</p></details>
+  <details><summary>A IA pode responder errado?</summary><p>Ela só usa o que está nas suas regras e chama você quando não sabe. Antes de ligar, você testa quantas vezes quiser.</p></details>
+  <details><summary>Quantas mensagens cabem no plano?</summary><p>Conta só o que a IA responde. As mensagens que você manda pelo painel não entram no limite.</p></details>
+  <details><summary>Atende mais de uma rede?</summary><p>Cada rede é um produto: Atende AI Whats, Insta, TikTok e Face. Os links estão no rodapé.</p></details>
+</div></section>
+
+<section class="fechamento"><div class="wrap">
+  <h2 class="rev">Hoje à noite alguém vai perguntar o preço. Quem responde?</h2>
+  <p class="rev">Deixe o {{NOME}} atendendo enquanto você dorme.</p>
+  <a class="btn btn-pri btn-lg pulsa" href="#planos">Começar agora</a>
+</div></section>
 </main>
 
 <footer class="rodape"><div class="wrap">
   <span>{{NOME}}, um produto Rangel Tech · <a href="/termos">Termos</a></span>
   <div class="outras" id="outras"></div>
 </div></footer>
+<div class="fixo-cel"><a class="btn btn-pri" href="#planos">Ver planos</a></div>
 
 <div class="modal" id="m-entrar" hidden role="dialog" aria-modal="true" aria-labelledby="m-tit">
   <div class="caixa"><button class="x" data-fechar aria-label="Fechar">×</button></div>
 </div>
-<script>window.MARCA = {{MARCA_JSON}}</script>
+<script>window.MARCA = {{MARCA_JSON}}
+document.getElementById('conecta').textContent = window.MARCA.conecta
+if (window.MARCA.codigo === 'whats') document.getElementById('voz').hidden = false</script>
 <script src="/s/login.js" data-conta="/api/conta" data-destino="/painel"></script>
-<script>
-;(async () => {
-  const $ = (q) => document.querySelector(q)
-  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
-  document.querySelector('.passos .cartao p').textContent = window.MARCA.conecta
-  const j = await (await fetch('/api/marca')).json()
-  $('#lista-planos').innerHTML = j.planos.map((p, i) => `<div class="plano ${i === 1 ? 'destaque' : ''}"><h3>${esc(p.nome)}</h3>
-    <div class="preco">R$ ${p.preco.toFixed(2).replace('.', ',')}<small>/mês</small></div>
-    <ul>${p.itens.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-    ${p.checkout ? `<a class="btn ${i === 1 ? 'btn-pri' : 'btn-sec'}" href="${esc(p.checkout)}">Assinar ${esc(p.nome)}</a>` : `<button class="btn btn-sec" disabled>Em breve</button>`}</div>`).join('')
-  $('#outras').innerHTML = j.outras.map((o) => `<a href="${esc(o.url)}">${esc(o.nome)}</a>`).join('')
-})()
-</script>
+<script src="/s/cinema.js"></script>
 </body>
 </html>
