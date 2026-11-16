@@ -450,6 +450,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         return FileResponse(AUDIOS / nome, media_type="audio/ogg")
 
     # ------------------------------------------------ minha voz (clonagem, plano Voz, só WhatsApp)
+    ESTADO_VOZ: dict = {}  # cache de 60 s do estado da voz (o rt-voz na GPU demora para responder)
+
     def voz_do(u: dict) -> str:
         k = db.um("SELECT voz_id FROM contas WHERE usuario=? AND voz_id!='' LIMIT 1", (u["id"],))
         return (k or {}).get("voz_id") or f"u{u['id']}"
@@ -458,10 +460,15 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def minha_voz(request: Request):
         u = usuario(request)
         vid = voz_do(u)
-        try:
-            e = vz.estado(vid) if vz.ligada else {}
-        except Exception:  # noqa: BLE001
-            e = {"erro": "o servidor de voz não respondeu agora"}
+        guardado = ESTADO_VOZ.get(vid)
+        if guardado and time.time() - guardado[0] < 60:
+            e = guardado[1]
+        else:
+            try:
+                e = vz.estado(vid) if vz.ligada else {}
+                ESTADO_VOZ[vid] = (time.time(), e)
+            except Exception:  # noqa: BLE001
+                e = {"erro": "o servidor de voz não respondeu agora"}
         if e.get("pronta"):
             db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca='whats' AND voz_id=''", (vid, u["id"]))
         contas = db.todos("SELECT id, rotulo, voz_modo FROM contas WHERE usuario=? AND marca='whats' AND ja_conectou=1", (u["id"],))
@@ -476,6 +483,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         tipo = (request.headers.get("content-type") or "audio/webm").split(";")[0]
         nome = "amostra." + {"audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/x-m4a": "m4a"}.get(tipo, "webm")
         try:
+            ESTADO_VOZ.pop(voz_do(u), None)
             return await run_in_threadpool(vz.amostra, voz_do(u), corpo, nome)
         except Exception as e:  # noqa: BLE001
             log.warning("amostra de voz falhou: %s", e)
@@ -485,6 +493,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def voz_treinar(request: Request):
         u = usuario(request)
         try:
+            ESTADO_VOZ.pop(voz_do(u), None)
             return vz.treinar(voz_do(u))
         except Exception as e:  # noqa: BLE001
             raise HTTPException(502, f"o treino não começou: {str(e)[:120]}")
