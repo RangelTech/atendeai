@@ -356,3 +356,16 @@ def test_audio_entra_transcrito_e_sai_nota_de_voz(tmp_path):
     c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo))
     assert gf.enviadas[-1]["text"] and "attachments" not in gf.enviadas[-1]
     assert texto_da_entrada({"tipo": "musica", "musica": {"titulo": "Evidências", "artista": "Chitãozinho & Xororó"}}).startswith("[o cliente mandou")
+
+
+def test_marcador_de_audio_nao_vaza_para_o_cliente():
+    from app.atendente import decidir
+    vistos = []
+
+    def llm(m):
+        vistos.extend(m)
+        return "[áudio] Claro! Já chamo o dono."
+    d = decidir("e agora?", [{"direcao": "ia", "texto": "[áudio] Oi! A grande é R$ 59."}], {"texto": "Grande R$ 59", "horario": "", "palavras_humano": "", "fora_horario": ""},
+                "WhatsApp", "ia", 0, time.time(), llm)
+    assert d["texto"] == "Claro! Já chamo o dono."
+    assert all("[áudio]" not in (x.get("content") or "") for x in vistos if x["role"] == "assistant")

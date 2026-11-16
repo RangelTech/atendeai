@@ -15,6 +15,8 @@ import re
 import unicodedata
 from typing import Callable
 
+_MARCA_AUDIO = re.compile(r"^\s*\[(?:áudio|audio)\]\s*", re.I)  # marcador interno do histórico (resposta foi em nota de voz)
+
 CAMPOS_SKILL = ["negocio", "produtos_e_precos", "tom", "perguntas_frequentes", "o_que_nunca_responder", "quando_passar_para_humano", "links", "horarios"]
 
 SISTEMA = """Você atende clientes de um negócio pelo {rede}. Use a skill atendente-de-negocio e siga as REGRAS do dono à risca.
@@ -79,11 +81,12 @@ def decidir(texto: str, historico: list[dict], skill: dict, rede: str, modo: str
         return {"acao": "humano", "texto": "", "motivo": "sem regras escritas"}
     msgs = [{"role": "system", "content": SISTEMA.format(rede=rede, skill=regras[:8000])}]
     for m in historico[-12:]:
-        msgs.append({"role": "user" if m["direcao"] == "entrada" else "assistant", "content": m["texto"][:1500]})
+        conteudo = m["texto"] if m["direcao"] == "entrada" else _MARCA_AUDIO.sub("", m["texto"])  # o modelo não pode copiar o marcador interno
+        msgs.append({"role": "user" if m["direcao"] == "entrada" else "assistant", "content": conteudo[:1500]})
     if not historico or historico[-1]["texto"] != texto:
         msgs.append({"role": "user", "content": texto[:1500]})
     try:
-        r = (llm(msgs) or "").strip()
+        r = _MARCA_AUDIO.sub("", (llm(msgs) or "")).strip()
     except Exception:  # noqa: BLE001
         return {"acao": "humano", "texto": "", "motivo": "IA indisponível"}
     if not r or "[HUMANO]" in r.upper():

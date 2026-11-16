@@ -7,8 +7,12 @@ Tudo roda no servidor de voz da Rangel Tech (rt-voz, GPU própria, acessado pela
 from __future__ import annotations
 
 import base64
+import re
 
 import httpx
+
+
+_SEM_EMOJI = re.compile("[🀀-🫿☀-➿️‍]+")
 
 
 class Voz:
@@ -32,7 +36,8 @@ class Voz:
 
     def falar(self, texto: str, voz: str | None) -> tuple[bytes, int]:
         """(ogg, duração em ms)."""
-        corpo = {"texto": texto[:1200], "formato": "ogg"}
+        falado = _SEM_EMOJI.sub("", texto).strip()  # emoji não vira som estranho na voz
+        corpo = {"texto": (falado or texto)[:1200], "formato": "ogg"}
         if voz:
             corpo["voz"] = voz
         with httpx.Client(transport=self.transport, timeout=240) as h:
