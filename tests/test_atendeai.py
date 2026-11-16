@@ -300,3 +300,10 @@ def test_modo_teste_so_responde_conversa_liberada(ambiente):
     corpo = evento("t2", "quanto custa a pizza grande?")
     c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo))
     assert gf.enviadas[-1]["text"] == "A pizza grande custa R$ 59."
+
+
+def test_resposta_parcial_responde_e_chama_o_dono():
+    from app.atendente import decidir
+    d = decidir("Entregam no Bueno? Quanto é a grande?", [], {"texto": "Grande R$ 59", "horario": "", "palavras_humano": "", "fora_horario": ""},
+                "WhatsApp", "ia", 0, time.time(), lambda m: "A grande sai por R$ 59. Sobre o Bueno, vou confirmar com o time. [CHAMAR]")
+    assert d["acao"] == "humano" and d["texto"] == "A grande sai por R$ 59. Sobre o Bueno, vou confirmar com o time."

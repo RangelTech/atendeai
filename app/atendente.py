@@ -23,7 +23,9 @@ REGRAS:
 
 Responda à última mensagem do cliente de forma curta, simpática e em português do Brasil, como uma pessoa do time.
 Nunca invente preço, prazo, endereço ou política que não esteja nas REGRAS. Não fale que é uma IA a não ser que perguntem.
-Se não souber responder com as REGRAS, ou se o cliente quiser negociar, reclamar ou falar com alguém, responda SÓ com: [HUMANO]"""
+Se a mensagem tiver várias perguntas e você souber só parte delas: responda a parte que está nas REGRAS, diga que vai confirmar o resto com o time
+e termine a mensagem com [CHAMAR].
+Se não souber nada com as REGRAS, ou se o cliente quiser negociar, reclamar ou falar com alguém, responda SÓ com: [HUMANO]"""
 
 ENTREVISTA = """Você ajuda o dono de um negócio a montar as REGRAS do atendente automático dele no {rede}.
 Assuntos obrigatórios: {campos}. Já respondido (JSON): {ja}.
@@ -86,6 +88,9 @@ def decidir(texto: str, historico: list[dict], skill: dict, rede: str, modo: str
         return {"acao": "humano", "texto": "", "motivo": "IA indisponível"}
     if not r or "[HUMANO]" in r.upper():
         return {"acao": "humano", "texto": "Vou chamar alguém do time para te responder direitinho. Só um instante.", "motivo": "IA não soube responder"}
+    if "[CHAMAR]" in r.upper():  # respondeu o que sabia; o resto fica com o dono
+        texto = re.sub(r"\s*\[chamar\]\s*", " ", r, flags=re.I).strip()
+        return {"acao": "humano", "texto": texto[:1500], "motivo": "IA respondeu parte e chamou o dono"}
     return {"acao": "responder", "texto": r[:1500], "motivo": ""}
 
 
