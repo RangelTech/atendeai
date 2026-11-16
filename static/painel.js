@@ -20,7 +20,7 @@
     $$('[data-aba]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.aba === nome)))
     $$('[data-painel]').forEach((p) => (p.hidden = p.dataset.painel !== nome))
     history.replaceState(null, '', '#' + nome)
-    ;({ conversas: carregarConversas, regras: carregarSkill, contas: carregarContas, plano: carregarPlano })[nome]?.()
+    ;({ conversas: carregarConversas, regras: carregarSkill, voz: carregarVoz, contas: carregarContas, plano: carregarPlano })[nome]?.()
   }
   $$('[data-aba]').forEach((b) => (b.onclick = () => abrirAba(b.dataset.aba)))
   $('#sair').onclick = async () => { await post('/api/sair'); location.href = '/' }
@@ -66,7 +66,7 @@
     d.innerHTML = `<div class="conv-cab"><div><b>${esc(c.contato || 'Contato')}</b> ${c.modo === 'humano' ? '<span class="tag humano">você está atendendo</span>' : '<span class="tag">IA atendendo</span>'}</div>
         <div class="acoes">${c.modo_teste ? (c.liberada ? '<button class="btn btn-ghost sm" id="bloquear">Tirar do teste</button>' : '<button class="btn btn-pri sm" id="liberar">Liberar IA nesta conversa</button>') : ''}
         ${c.modo === 'humano' ? '<button class="btn btn-sec sm" id="devolver">Devolver para a IA</button>' : '<button class="btn btn-sec sm" id="assumir">Assumir conversa</button>'}</div></div>
-      <div class="conv-msgs">${c.mensagens.map((m) => `<div class="fala ${m.direcao === 'eco' ? 'humano' : esc(m.direcao)}">${esc(m.texto)}<span class="quem">${QUEM[m.direcao] || ''} · ${hora(m.criado)}</span></div>`).join('')}</div>
+      <div class="conv-msgs">${c.mensagens.map((m) => `<div class="fala ${m.direcao === 'eco' ? 'humano' : esc(m.direcao)}">${m.audio ? `<audio controls preload="none" src="/api/audios/${esc(m.audio)}"></audio>` : ''}${esc(m.texto)}<span class="quem">${QUEM[m.direcao] || ''} · ${hora(m.criado)}</span></div>`).join('')}</div>
       <form class="conv-env" id="env"><input id="env-txt" placeholder="Escreva como você (a IA para nesta conversa)" autocomplete="off"><button class="btn btn-pri">Enviar</button></form>`
     if (rolarFim) { const m = $('.conv-msgs', d); m.scrollTop = m.scrollHeight }
     $('#liberar', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/liberar`); abrirConversa(id) })
@@ -81,18 +81,70 @@
     }
   }
 
-  // ------------------------------------------------ regras
+  // ------------------------------------------------ skills (cada '## Título' do texto é um arquivo de skill)
   const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom']
   $('#sk-dias').innerHTML = DIAS.map((d, i) => `<label><input type="checkbox" value="${i}"><span>${d}</span></label>`).join('')
   const skMsg = (t, tipo = '') => { $('#sk-msg').textContent = t; $('#sk-msg').className = 'msg ' + tipo }
+  const MODELOS = [
+    ['Sobre o negócio', 'Nome do negócio, cidade e bairro.\nO que vendemos e para quem.\nDiferenciais (por que comprar aqui).'],
+    ['Produtos e preços', '- Produto 1: R$ 00,00 (tamanho, sabores)\n- Produto 2: R$ 00,00\nCombos e promoções da semana:'],
+    ['Perguntas frequentes', 'P: Vocês entregam?\nR: \nP: Tem estacionamento?\nR: \nP: Aceitam encomenda?\nR: '],
+    ['Entrega e retirada', 'Bairros atendidos e taxa de cada um:\nTempo médio de entrega:\nPedido mínimo:\nRetirada no local: endereço e horário.'],
+    ['Formas de pagamento', 'Pix (chave):\nCartão na entrega: sim/não\nDinheiro com troco: sim/não\nParcelamento:'],
+    ['Trocas e devoluções', 'Prazo para troca:\nComo pedir:\nQuando não trocamos:'],
+    ['Tom de voz', 'Fale como o dono: próximo, educado e direto.\nUse o nome do cliente.\nEmojis com moderação.\nRespostas curtas (até 3 frases).'],
+    ['Quando chamar o dono', 'Reclamação, pedido de desconto, negociação, cancelamento ou qualquer coisa que não esteja nas skills: responda o que souber e diga que vai chamar o responsável.'],
+    ['Nunca fazer', 'Nunca dar desconto sem o dono.\nNunca prometer prazo que não está escrito aqui.\nNunca inventar preço ou produto.'],
+    ['Agenda e horários', 'Horário de funcionamento por dia:\nComo agendar:\nAntecedência mínima:'],
+  ]
+  let SK = [], OFF = new Set(), SEL = 0
+  const contar = (t) => `${(t || '').length} caracteres`
+  function separar(texto) {
+    const partes = (texto || '').split(/^(?=## )/m).map((p) => p.trim()).filter(Boolean)
+    const out = []
+    for (const p of partes) {
+      if (p.startsWith('## ')) { const [t, ...r] = p.slice(3).split('\n'); out.push({ titulo: t.trim(), corpo: r.join('\n').trim() }) }
+      else out.push({ titulo: 'Geral', corpo: p })
+    }
+    return out
+  }
+  const juntar = () => SK.filter((x) => x.titulo.trim()).map((x) => `## ${x.titulo.trim()}\n${x.corpo.trim()}`).join('\n\n')
+  function guardarEditor() { const x = SK[SEL]; if (!x) return; const antigo = x.titulo; x.titulo = $('#sk-titulo').value.trim() || 'Sem nome'; x.corpo = $('#sk-corpo').value
+    if (antigo !== x.titulo && OFF.has(antigo)) { OFF.delete(antigo); OFF.add(x.titulo) }
+    if ($('#sk-ativa').checked) OFF.delete(x.titulo); else OFF.add(x.titulo) }
+  function desenharIndice() {
+    const ligadas = SK.filter((x) => !OFF.has(x.titulo)).length
+    $('#sk-resumo').textContent = `${SK.length} skills · ${ligadas} ligadas · ${juntar().length} caracteres`
+    $('#sk-lista').innerHTML = SK.length ? SK.map((x, i) => `<button class="sk-item ${i === SEL ? 'atual' : ''} ${OFF.has(x.titulo) ? 'off' : ''}" data-sk-i="${i}">
+      <span class="sk-arq">${String(i + 1).padStart(2, '0')}</span><span class="sk-nome"><b>${esc(x.titulo)}</b><small>${OFF.has(x.titulo) ? 'desligada' : contar(x.corpo)}</small></span></button>`).join('')
+      : '<p class="vazio">Nenhuma skill ainda. Use um modelo ou o chat ao lado.</p>'
+    $$('[data-sk-i]').forEach((b) => (b.onclick = () => { guardarEditor(); SEL = +b.dataset.skI; abrirSkill() }))
+  }
+  function abrirSkill() {
+    const x = SK[SEL]
+    $('.sk-editor').classList.toggle('vazio-ed', !x)
+    $('#sk-titulo').value = x ? x.titulo : ''; $('#sk-corpo').value = x ? x.corpo : ''; $('#sk-ativa').checked = x ? !OFF.has(x.titulo) : false
+    $('#sk-cont').textContent = x ? contar(x.corpo) : ''
+    desenharIndice()
+  }
+  $('#sk-corpo').oninput = () => { $('#sk-cont').textContent = contar($('#sk-corpo').value) }
+  $('#sk-titulo').onchange = () => { guardarEditor(); desenharIndice() }
+  $('#sk-ativa').onchange = () => { guardarEditor(); desenharIndice() }
+  $('#sk-nova').onclick = () => { guardarEditor(); SK.push({ titulo: 'Nova skill', corpo: '' }); SEL = SK.length - 1; abrirSkill(); $('#sk-titulo').select() }
+  $('#sk-excluir').onclick = () => { if (!SK[SEL] || !confirm(`Excluir a skill "${SK[SEL].titulo}"?`)) return; OFF.delete(SK[SEL].titulo); SK.splice(SEL, 1); SEL = Math.max(0, SEL - 1); abrirSkill() }
+  $('#sk-modelos').innerHTML = MODELOS.map(([t], i) => `<button class="sk-modelo" data-mod="${i}">+ ${esc(t)}</button>`).join('')
+  $$('[data-mod]').forEach((b) => (b.onclick = () => { guardarEditor(); const [t, c] = MODELOS[+b.dataset.mod]; const j = SK.findIndex((x) => x.titulo === t)
+    if (j >= 0) SEL = j; else { SK.push({ titulo: t, corpo: c }); SEL = SK.length - 1 } abrirSkill() }))
+  $$('[data-sk]').forEach((b) => (b.onclick = () => { $$('[data-sk]').forEach((x) => x.setAttribute('aria-selected', String(x === b))); $$('[data-skp]').forEach((p) => (p.hidden = p.dataset.skp !== b.dataset.sk)) }))
   function desenharChat(hist) {
     const c = $('#sk-chat')
-    c.innerHTML = (hist.length ? '' : `<div class="fala assistant">Vou te fazer algumas perguntas para montar as regras do seu atendente. Para começar: o que você vende e para quem?</div>`) +
+    c.innerHTML = (hist.length ? '' : `<div class="fala assistant">Vou te fazer algumas perguntas e montar as skills do seu atendente. Para começar: o que você vende e para quem?</div>`) +
       hist.map((h) => `<div class="fala ${h.papel === 'user' ? 'user' : 'assistant'}">${esc(h.texto)}</div>`).join('')
     c.scrollTop = c.scrollHeight
   }
   async function carregarSkill() {
     const s = await api('/api/skill')
+    SK = separar(s.texto); OFF = new Set(s.desligadas || []); SEL = Math.min(SEL, Math.max(0, SK.length - 1))
     $('#sk-texto').value = s.texto || ''
     $('#sk-palavras').value = s.palavras_humano || ''
     $('#sk-fora').value = s.fora_horario || ''
@@ -103,9 +155,10 @@
     $('#sk-prog').textContent = `${n}/8 assuntos`
     $('#sk-barra').style.width = `${(n / 8) * 100}%`
     desenharChat(s.historico || [])
+    abrirSkill()
     $('#sk-versoes').innerHTML = s.versoes.length ? s.versoes.map((v, i) => `<div class="versao"><div><b>${hora(v.criado)}</b> <span class="dim">${esc(v.autor)}${i === 0 ? ' · atual' : ''}</span><p>${esc(v.inicio)}</p></div>
       ${i ? `<button class="btn btn-ghost sm" data-v="${v.id}">Voltar</button>` : ''}</div>`).join('') : '<p class="vazio">Nenhuma versão salva ainda.</p>'
-    $$('[data-v]').forEach((b) => (b.onclick = async () => { if (!confirm('Voltar para esta versão das regras?')) return; await post(`/api/skill/versoes/${b.dataset.v}/restaurar`); carregarSkill() }))
+    $$('[data-v]').forEach((b) => (b.onclick = async () => { if (!confirm('Voltar para esta versão das skills?')) return; await post(`/api/skill/versoes/${b.dataset.v}/restaurar`); carregarSkill() }))
   }
   $('#sk-form').onsubmit = async (e) => {
     e.preventDefault()
@@ -117,20 +170,72 @@
     c.scrollTop = c.scrollHeight
     try {
       const r = await post('/api/skill/chat', { texto: t })
-      if (r.pronta) skMsg('Regras prontas e salvas. Teste abaixo antes de ligar.', 'ok')
+      if (r.pronta) skMsg('Skills prontas e salvas. Teste na aba Testar antes de ligar.', 'ok')
     } catch (err) { skMsg(err.message, 'erro') }
     carregarSkill()
   }
   $('#sk-salvar').onclick = async () => {
+    guardarEditor()
     const ini = $('#sk-ini').value, fim = $('#sk-fim').value
     const dias = $$('#sk-dias input:checked').map((i) => +i.value)
+    const nomes = new Set(SK.map((x) => x.titulo))
     try {
-      await api('/api/skill', { method: 'PUT', body: JSON.stringify({ texto: $('#sk-texto').value, palavras_humano: $('#sk-palavras').value, fora_horario: $('#sk-fora').value,
+      await api('/api/skill', { method: 'PUT', body: JSON.stringify({ texto: juntar(), desligadas: [...OFF].filter((t) => nomes.has(t)), palavras_humano: $('#sk-palavras').value, fora_horario: $('#sk-fora').value,
         horario: ini && fim ? { inicio: ini, fim, dias } : null }) })
-      skMsg('Salvo.', 'ok')
+      skMsg('Salvo. A IA já usa as skills ligadas.', 'ok')
       carregarSkill()
     } catch (err) { skMsg(err.message, 'erro') }
   }
+
+  // ------------------------------------------------ minha voz (plano Voz, só WhatsApp)
+  if (window.MARCA.codigo === 'whats') $('#aba-voz').hidden = false
+  let REC = null, PEDACOS = [], T0 = 0, TIMER = null
+  const vozMsg = (t, tipo = '') => { $('#voz-msg').textContent = t; $('#voz-msg').className = 'msg ' + tipo }
+  async function carregarVoz() {
+    const v = await api('/api/voz')
+    const e = v.estado || {}, min = e.minutos || 0
+    const ETAPA = { pronta: 'Voz pronta', treinando: 'Treinando a sua voz…', preparando: 'Preparando…', erro: 'O treino falhou' }
+    $('#voz-status').innerHTML = `<b>${esc(ETAPA[e.etapa] || (min ? 'Gravações recebidas' : 'Ainda sem gravações'))}</b><span class="dim">${e.amostras || 0} áudios · ${String(min).replace('.', ',')} min</span>`
+    $('#voz-barra').style.width = Math.min(100, (min / v.minimo_minutos) * 100) + '%'
+    $('#voz-total').textContent = min >= v.minimo_minutos ? 'Já dá para treinar. Mais minutos deixam a voz mais natural.' : `Faltam ${Math.max(0, v.minimo_minutos - min).toFixed(1).replace('.', ',')} min para poder treinar.`
+    $('#voz-treinar').disabled = min < v.minimo_minutos || e.etapa === 'treinando'
+    $('#voz-ouvir').disabled = !e.pronta
+    $('#voz-contas').innerHTML = v.contas.length ? v.contas.map((k) => `<div class="conta-linha"><b>${esc(k.rotulo || 'WhatsApp')}</b>
+      <select class="sel-voz" data-voz="${k.id}"><option value="desligado" ${k.voz_modo === 'desligado' ? 'selected' : ''}>Respostas em texto</option>
+      <option value="quando_audio" ${k.voz_modo === 'quando_audio' ? 'selected' : ''}>Áudio quando o cliente mandar áudio</option>
+      <option value="sempre" ${k.voz_modo === 'sempre' ? 'selected' : ''}>Sempre em áudio</option></select></div>`).join('') : '<p class="vazio">Conecte o WhatsApp para escolher.</p>'
+    $$('#voz-contas [data-voz]').forEach((sel) => (sel.onchange = async () => { try { await post(`/api/contas/${sel.dataset.voz}/voz_${sel.value}`); vozMsg('Preferência salva.', 'ok') } catch (err) { vozMsg(err.message, 'erro') } }))
+    if (e.etapa === 'treinando') setTimeout(() => { if (!$('[data-painel=voz]').hidden) carregarVoz() }, 15000)
+  }
+  async function enviarAmostra(blob, nome) {
+    vozMsg(`Enviando ${nome}…`)
+    const r = await fetch('/api/voz/amostras', { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'audio/webm' } })
+    if (!r.ok) { let j = {}; try { j = await r.json() } catch {} throw new Error(j.detail || 'Não consegui enviar o áudio.') }
+  }
+  $('#voz-rec').onclick = async () => {
+    if (REC) { REC.stop(); return }
+    try {
+      const st = await navigator.mediaDevices.getUserMedia({ audio: true })
+      REC = new MediaRecorder(st); PEDACOS = []
+      REC.ondataavailable = (e) => PEDACOS.push(e.data)
+      REC.onstop = async () => { st.getTracks().forEach((t) => t.stop()); clearInterval(TIMER); $('#voz-rec').textContent = '● Gravar'; const b = new Blob(PEDACOS, { type: REC.mimeType }); REC = null
+        try { await enviarAmostra(b, 'gravação'); vozMsg('Gravação enviada.', 'ok'); carregarVoz() } catch (err) { vozMsg(err.message, 'erro') } }
+      REC.start(); T0 = Date.now(); $('#voz-rec').textContent = '■ Parar e enviar'
+      TIMER = setInterval(() => { const s = Math.floor((Date.now() - T0) / 1000); $('#voz-tempo').textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` }, 500)
+    } catch { vozMsg('Libere o microfone no navegador para gravar.', 'erro') }
+  }
+  $('#voz-arq').onchange = async (e) => {
+    for (const f of e.target.files) { try { await enviarAmostra(f, f.name) } catch (err) { vozMsg(err.message, 'erro'); break } }
+    e.target.value = ''; vozMsg('Áudios enviados.', 'ok'); carregarVoz()
+  }
+  $('#voz-treinar').onclick = async () => { try { await post('/api/voz/treinar'); vozMsg('Treino iniciado. Leva alguns minutos; pode sair desta tela.', 'ok'); carregarVoz() } catch (err) { vozMsg(err.message, 'erro') } }
+  $('#voz-ouvir').onclick = async () => {
+    vozMsg('Gerando o áudio…')
+    const r = await fetch('/api/voz/exemplo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texto: $('#voz-frase').value }) })
+    if (!r.ok) { vozMsg('A voz ainda não está pronta.', 'erro'); return }
+    const p = $('#voz-player'); p.src = URL.createObjectURL(await r.blob()); p.hidden = false; p.play(); vozMsg('')
+  }
+
   const teste = []
   $('#ts-form').onsubmit = async (e) => {
     e.preventDefault()

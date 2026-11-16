@@ -97,6 +97,12 @@ class Banco:
         if "voz_modo" not in cols:  # resposta em áudio: desligado | quando_audio | sempre (plano Voz, 16/11)
             self.con.execute("ALTER TABLE contas ADD COLUMN voz_modo TEXT NOT NULL DEFAULT 'desligado'")
             self.con.execute("ALTER TABLE contas ADD COLUMN voz_id TEXT NOT NULL DEFAULT ''")
+        scols = {r[1] for r in self.con.execute("PRAGMA table_info(skills)")}
+        if scols and "desligadas" not in scols:  # skills (seções ## do texto) desligadas pelo dono (16/11)
+            self.con.execute("ALTER TABLE skills ADD COLUMN desligadas TEXT NOT NULL DEFAULT '[]'")
+        mcols = {r[1] for r in self.con.execute("PRAGMA table_info(mensagens)")}
+        if "audio" not in mcols:  # nome do arquivo de áudio (resposta em voz ou áudio do cliente) para tocar no painel
+            self.con.execute("ALTER TABLE mensagens ADD COLUMN audio TEXT NOT NULL DEFAULT ''")
         ccols = {r[1] for r in self.con.execute("PRAGMA table_info(conversas)")}
         if "liberada" not in ccols:
             self.con.execute("ALTER TABLE conversas ADD COLUMN liberada INTEGER NOT NULL DEFAULT 0")

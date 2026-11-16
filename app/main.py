@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import re
 import hmac
 import json
 import logging
@@ -14,7 +15,7 @@ from pathlib import Path
 import httpx
 from starlette.concurrency import run_in_threadpool
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import atendente, auth, mailer, senha_rotas
@@ -42,6 +43,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     cfg = cfg or carregar()
     Path(cfg.dados).mkdir(parents=True, exist_ok=True)
     db = Banco(os.path.join(cfg.dados, "atendeai.db"))
+    AUDIOS = Path(cfg.dados) / "audios"   # respostas em voz e áudios dos clientes, para tocar no painel
+    AUDIOS.mkdir(parents=True, exist_ok=True)
     gw = gateway or Gateway(cfg.canais_url, cfg.canais_token)
     vz = voz or voz_mod.Voz(cfg.voz_base, cfg.voz_token)
     app = FastAPI(title="Atende AI", docs_url=None, redoc_url=None, openapi_url=None)
@@ -304,7 +307,13 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
 
     # ------------------------------------------------ webhook do gateway (mensagens e estado)
     def skill_de(uid: int, marca: str) -> dict:
-        return db.um("SELECT * FROM skills WHERE usuario=? AND marca=?", (uid, marca)) or {"texto": "", "horario": "", "palavras_humano": "atendente,humano,pessoa,reclamação", "fora_horario": ""}
+        """Regras do atendente. Cada seção '## Título' é uma skill; as desligadas no painel não vão para a IA."""
+        s = db.um("SELECT * FROM skills WHERE usuario=? AND marca=?", (uid, marca)) or {"texto": "", "horario": "", "palavras_humano": "atendente,humano,pessoa,reclamação", "fora_horario": ""}
+        off = set(json.loads(s.get("desligadas") or "[]"))
+        if off and s.get("texto"):
+            partes = re.split(r"(?m)^(?=## )", s["texto"])
+            s = {**s, "texto": "".join(p for p in partes if not (p.startswith("## ") and p[3:].split("\n", 1)[0].strip() in off))}
+        return s
 
     def responder(conversa_id: int, texto: str, veio_audio: bool = False) -> None:
         c = db.um("SELECT c.*, k.usuario, k.marca, k.ia_ligada, k.estado, k.so_liberadas, k.voz_modo, k.voz_id FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=?", (conversa_id,))
@@ -325,11 +334,13 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if not d["texto"]:
             return
         chave = hashlib.sha256(f"{conversa_id}:{texto}:{time.time_ns()}".encode()).hexdigest()[:32]
-        anexos, registro = None, d["texto"]
+        anexos, registro, audio_nome = None, d["texto"], ""
         if vz.ligada and (c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
             try:  # nota de voz na voz do dono (rt-voz, GPU própria); se falhar, vai em texto
                 ogg, ms = vz.falar(d["texto"], c["voz_id"] or None)
                 anexos, registro = [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"]
+                audio_nome = chave + ".ogg"
+                (AUDIOS / audio_nome).write_bytes(ogg)
             except Exception as e:  # noqa: BLE001
                 log.warning("voz falhou na conversa %s (vai texto): %s", conversa_id, e)
         try:
@@ -337,7 +348,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         except CanalErro as e:
             log.warning("envio falhou na conversa %s: %s", conversa_id, e)
             return
-        db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado) VALUES(?,?,?,?,?)", (conversa_id, "ia:" + chave, "ia", registro, agora()))
+        db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado,audio) VALUES(?,?,?,?,?,?)", (conversa_id, "ia:" + chave, "ia", registro, agora(), audio_nome))
 
     @app.post("/hooks/canal/{cid}")
     async def webhook_canal(cid: str, request: Request, tarefas: BackgroundTasks):
@@ -395,6 +406,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if audio and vz.ligada:
             try:
                 dados = gw.midia(cfg.conta_base + int(k["usuario"]), k["id"], audio["url"])
+                nome_a = hashlib.sha256(f"{conversa_id}:{ext}".encode()).hexdigest()[:32] + ".ogg"
+                (AUDIOS / nome_a).write_bytes(dados)
+                db.exec("UPDATE mensagens SET audio=? WHERE conversa=? AND externo=?", (nome_a, conversa_id, ext))
                 texto = voz_mod.texto_da_entrada(vz.ouvir(dados, audio.get("name") or "audio.ogg"))
                 db.exec("UPDATE mensagens SET texto=? WHERE conversa=? AND externo=?", (texto[:4000], conversa_id, ext))
             except Exception as e:  # noqa: BLE001
@@ -422,7 +436,69 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         c = minha_conversa(u, conv)
         db.exec("UPDATE conversas SET nao_lidas=0 WHERE id=?", (conv,))
         return {"id": c["id"], "contato": c["contato"], "modo": c["modo"], "modo_teste": bool(c["so_liberadas"]), "liberada": bool(c["liberada"]),
-                "mensagens": db.todos("SELECT direcao, texto, criado FROM mensagens WHERE conversa=? ORDER BY criado, id LIMIT 500", (conv,))}
+                "mensagens": db.todos("SELECT direcao, texto, criado, audio FROM mensagens WHERE conversa=? ORDER BY criado, id LIMIT 500", (conv,))}
+
+    @app.get("/api/audios/{nome}")
+    def tocar_audio(nome: str, request: Request):
+        u = usuario(request)
+        if not re.fullmatch(r"[0-9a-f]{32}\.ogg", nome):
+            raise HTTPException(404, "áudio não encontrado")
+        dono = db.um("""SELECT 1 FROM mensagens m JOIN conversas c ON c.id=m.conversa JOIN contas k ON k.id=c.conta
+                        WHERE m.audio=? AND k.usuario=?""", (nome, u["id"]))
+        if not dono or not (AUDIOS / nome).exists():
+            raise HTTPException(404, "áudio não encontrado")
+        return FileResponse(AUDIOS / nome, media_type="audio/ogg")
+
+    # ------------------------------------------------ minha voz (clonagem, plano Voz, só WhatsApp)
+    def voz_do(u: dict) -> str:
+        k = db.um("SELECT voz_id FROM contas WHERE usuario=? AND voz_id!='' LIMIT 1", (u["id"],))
+        return (k or {}).get("voz_id") or f"u{u['id']}"
+
+    @app.get("/api/voz")
+    def minha_voz(request: Request):
+        u = usuario(request)
+        vid = voz_do(u)
+        try:
+            e = vz.estado(vid) if vz.ligada else {}
+        except Exception:  # noqa: BLE001
+            e = {"erro": "o servidor de voz não respondeu agora"}
+        if e.get("pronta"):
+            db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca='whats' AND voz_id=''", (vid, u["id"]))
+        contas = db.todos("SELECT id, rotulo, voz_modo FROM contas WHERE usuario=? AND marca='whats' AND ja_conectou=1", (u["id"],))
+        return {"ligada": vz.ligada, "voz": vid, "estado": e, "contas": contas, "minimo_minutos": 10}
+
+    @app.post("/api/voz/amostras")
+    async def voz_amostra(request: Request):
+        u = usuario(request)
+        corpo = await request.body()
+        if not corpo or len(corpo) > 60 * 1024 * 1024:
+            raise HTTPException(422, "áudio vazio ou grande demais (até 60 MB)")
+        tipo = (request.headers.get("content-type") or "audio/webm").split(";")[0]
+        nome = "amostra." + {"audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/x-m4a": "m4a"}.get(tipo, "webm")
+        try:
+            return await run_in_threadpool(vz.amostra, voz_do(u), corpo, nome)
+        except Exception as e:  # noqa: BLE001
+            log.warning("amostra de voz falhou: %s", e)
+            raise HTTPException(502, "não consegui guardar esse áudio agora; tente de novo")
+
+    @app.post("/api/voz/treinar")
+    def voz_treinar(request: Request):
+        u = usuario(request)
+        try:
+            return vz.treinar(voz_do(u))
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(502, f"o treino não começou: {str(e)[:120]}")
+
+    @app.post("/api/voz/exemplo")
+    async def voz_exemplo(request: Request):
+        u = usuario(request)
+        b = await request.json()
+        texto = str(b.get("texto") or "Oi! Tudo bem? Aqui é do atendimento. Como posso te ajudar hoje?")[:400]
+        try:
+            ogg, _ = await run_in_threadpool(vz.falar, texto, voz_do(u))
+        except Exception:  # noqa: BLE001
+            raise HTTPException(502, "a voz ainda não está pronta ou o servidor não respondeu")
+        return Response(content=ogg, media_type="audio/ogg")
 
     @app.post("/api/conversas/{conv}/{acao}")
     async def conversa_acao(conv: int, acao: str, request: Request):
@@ -462,7 +538,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         u = usuario(request)
         m = marca_de(request)
         s = skill_de(u["id"], m)
-        return {"texto": s["texto"], "horario": json.loads(s["horario"]) if s.get("horario") else None, "palavras_humano": s["palavras_humano"],
+        s = db.um("SELECT * FROM skills WHERE usuario=? AND marca=?", (u["id"], m)) or s
+        return {"texto": s["texto"], "desligadas": json.loads(s.get("desligadas") or "[]"), "horario": json.loads(s["horario"]) if s.get("horario") else None, "palavras_humano": s["palavras_humano"],
                 "fora_horario": s["fora_horario"], "campos": json.loads(s.get("campos") or "{}"),
                 "historico": db.todos("SELECT papel, texto FROM skill_chat WHERE usuario=? AND marca=? ORDER BY id", (u["id"], m)),
                 "versoes": db.todos("SELECT id, autor, criado, substr(texto,1,160) AS inicio FROM skill_versoes WHERE usuario=? AND marca=? ORDER BY id DESC LIMIT 30", (u["id"], m))}
@@ -478,9 +555,11 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             if not isinstance(horario, dict) or not all(isinstance(horario.get(x, ""), str) for x in ("inicio", "fim")):
                 raise HTTPException(422, "horário inválido")
             horario = json.dumps({"dias": [int(d) for d in horario.get("dias") or [] if 0 <= int(d) <= 6], "inicio": horario.get("inicio") or "08:00", "fim": horario.get("fim") or "18:00"})
-        db.exec("UPDATE skills SET texto=?, horario=?, palavras_humano=?, fora_horario=? WHERE usuario=? AND marca=?",
-                (str(b.get("texto") or "")[:12000], horario or "", str(b.get("palavras_humano") or "")[:400], str(b.get("fora_horario") or "")[:600], u["id"], m))
-        salvar_versao(u["id"], m, str(b.get("texto") or "")[:12000], "você")
+        off = [str(x)[:120] for x in (b.get("desligadas") or [])][:60]
+        db.exec("UPDATE skills SET texto=?, horario=?, palavras_humano=?, fora_horario=?, desligadas=? WHERE usuario=? AND marca=?",
+                (str(b.get("texto") or "")[:30000], horario or "", str(b.get("palavras_humano") or "")[:400], str(b.get("fora_horario") or "")[:600],
+                 json.dumps(off, ensure_ascii=False), u["id"], m))
+        salvar_versao(u["id"], m, str(b.get("texto") or "")[:30000], "você")
         return {"ok": True}
 
     @app.post("/api/skill/chat")

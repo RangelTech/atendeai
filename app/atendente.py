@@ -79,7 +79,7 @@ def decidir(texto: str, historico: list[dict], skill: dict, rede: str, modo: str
     regras = (skill.get("texto") or "").strip()
     if not regras:
         return {"acao": "humano", "texto": "", "motivo": "sem regras escritas"}
-    msgs = [{"role": "system", "content": SISTEMA.format(rede=rede, skill=regras[:8000])}]
+    msgs = [{"role": "system", "content": SISTEMA.format(rede=rede, skill=regras[:16000])}]
     for m in historico[-12:]:
         conteudo = m["texto"] if m["direcao"] == "entrada" else _MARCA_AUDIO.sub("", m["texto"])  # o modelo não pode copiar o marcador interno
         msgs.append({"role": "user" if m["direcao"] == "entrada" else "assistant", "content": conteudo[:1500]})

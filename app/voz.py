@@ -28,6 +28,27 @@ class Voz:
     def _h(self) -> dict:
         return {"Authorization": f"Bearer {self.token}"}
 
+    def amostra(self, vid: str, audio: bytes, nome: str) -> dict:
+        """Uma gravação da voz do dono (o rt-voz junta as amostras para treinar)."""
+        with httpx.Client(transport=self.transport, timeout=300) as h:
+            r = h.post(self.base + f"/v1/vozes/{vid}/amostras", headers=self._h(), files={"audio": (nome, audio)})
+        r.raise_for_status()
+        return r.json()
+
+    def treinar(self, vid: str) -> dict:
+        with httpx.Client(transport=self.transport, timeout=120) as h:
+            r = h.post(self.base + f"/v1/vozes/{vid}/treinar", headers=self._h())
+        r.raise_for_status()
+        return r.json()
+
+    def estado(self, vid: str) -> dict:
+        with httpx.Client(transport=self.transport, timeout=60) as h:
+            r = h.get(self.base + f"/v1/vozes/{vid}", headers=self._h())
+        if r.status_code == 404:
+            return {}
+        r.raise_for_status()
+        return r.json()
+
     def ouvir(self, audio: bytes, nome: str = "audio.ogg") -> dict:
         with httpx.Client(transport=self.transport, timeout=180) as h:
             r = h.post(self.base + "/v1/ouvir", headers=self._h(), files={"audio": (nome, audio)})

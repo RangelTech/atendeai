@@ -13,7 +13,8 @@
   <a class="logo" href="/painel"><i>AI</i>{{NOME}}</a>
   <nav class="abas" role="tablist">
     <button role="tab" data-aba="conversas" aria-selected="true">Conversas <span class="badge" id="b-nao-lidas" hidden></span></button>
-    <button role="tab" data-aba="regras">Regras</button>
+    <button role="tab" data-aba="regras">Skills</button>
+    <button role="tab" data-aba="voz" id="aba-voz" hidden>Minha voz</button>
     <button role="tab" data-aba="contas">Conta conectada</button>
     <button role="tab" data-aba="plano">Plano</button>
   </nav>
@@ -33,40 +34,83 @@
 
   <!-- regras -->
   <section data-painel="regras" hidden>
-    <div class="duas">
-      <div class="cartao">
-        <div class="cab-cartao"><h3>Ensinar conversando</h3><span class="dim" id="sk-prog">0/8 assuntos</span></div>
-        <div class="progresso"><span id="sk-barra"></span></div>
-        <div class="chat" id="sk-chat"></div>
-        <form class="linha" id="sk-form"><input id="sk-txt" placeholder="Responda aqui" autocomplete="off"><button class="btn btn-pri" aria-label="Enviar">Enviar</button></form>
-      </div>
-      <div class="cartao">
-        <div class="cab-cartao"><h3>Regras do atendente</h3><button class="btn btn-pri sm" id="sk-salvar">Salvar</button></div>
-        <label for="sk-texto">O que a IA sabe e como responde</label>
-        <textarea id="sk-texto" class="alta" placeholder="A conversa ao lado escreve aqui. Você também pode escrever à mão."></textarea>
-        <label for="sk-palavras">Palavras que chamam você (separe por vírgula)</label>
-        <input id="sk-palavras" placeholder="atendente, humano, reclamação, cancelar">
-        <div class="linha3">
-          <div><label for="sk-ini">Abre às</label><input id="sk-ini" type="time"></div>
-          <div><label for="sk-fim">Fecha às</label><input id="sk-fim" type="time"></div>
-          <div><label>Dias</label><div class="dias" id="sk-dias"></div></div>
-        </div>
-        <p class="dim" style="font-size:13px;margin-top:6px">Sem horário marcado, a IA atende a qualquer hora.</p>
-        <label for="sk-fora">Mensagem fora do horário</label>
-        <input id="sk-fora" placeholder="Oi! Agora estamos fora do horário. Amanhã às 8h a gente responde.">
+    <div class="sk-topo">
+      <div><h2>Skills do seu atendente</h2><p class="dim">Cada skill é um arquivo do que a IA sabe. Ligue, desligue, edite ou crie a partir de um modelo. Só as skills ligadas vão para a IA.</p></div>
+      <div class="sk-acoes"><span class="dim" id="sk-resumo"></span><button class="btn btn-pri" id="sk-salvar">Salvar tudo</button></div>
+    </div>
+    <div class="sk-grade">
+      <aside class="cartao sk-indice">
+        <div class="cab-cartao"><h3>Índice</h3><button class="btn btn-sec sm" id="sk-nova">+ Nova</button></div>
+        <div id="sk-lista"></div>
+        <h4 class="sk-sub">Modelos prontos</h4>
+        <div id="sk-modelos" class="sk-modelos"></div>
+      </aside>
+      <div class="cartao sk-editor">
+        <div class="sk-ed-cab"><input id="sk-titulo" placeholder="Nome da skill (ex.: Preços e cardápio)" maxlength="80">
+          <label class="sk-liga"><input type="checkbox" id="sk-ativa"> <span>Ligada</span></label>
+          <button class="btn btn-ghost sm perigo" id="sk-excluir">Excluir</button></div>
+        <textarea id="sk-corpo" class="sk-area" placeholder="Escreva o que a IA precisa saber sobre este assunto. Use frases curtas, listas e valores exatos."></textarea>
+        <div class="sk-rodape"><span class="dim" id="sk-cont"></span><span class="dim">Dica: valores exatos (preço, prazo, endereço) evitam que a IA invente.</span></div>
+        <textarea id="sk-texto" hidden></textarea>
         <div class="msg" id="sk-msg" role="status"></div>
       </div>
+      <div class="sk-lado">
+        <div class="cartao">
+          <div class="sk-tabs" role="tablist"><button data-sk="ensinar" aria-selected="true">Ensinar conversando</button><button data-sk="testar">Testar</button><button data-sk="versoes">Versões</button><button data-sk="config">Horário</button></div>
+          <div data-skp="ensinar">
+            <div class="cab-cartao"><span class="dim" id="sk-prog">0/8 assuntos</span></div>
+            <div class="progresso"><span id="sk-barra"></span></div>
+            <div class="chat" id="sk-chat"></div>
+            <form class="linha" id="sk-form"><input id="sk-txt" placeholder="Responda aqui" autocomplete="off"><button class="btn btn-pri" aria-label="Enviar">Enviar</button></form>
+          </div>
+          <div data-skp="testar" hidden>
+            <p class="dim">Escreva como se fosse o cliente. Nada é enviado.</p>
+            <div class="chat curto" id="ts-chat"></div>
+            <form class="linha" id="ts-form"><input id="ts-txt" placeholder="Ex.: quanto custa a entrega?" autocomplete="off"><button class="btn btn-sec">Testar</button></form>
+          </div>
+          <div data-skp="versoes" hidden><div id="sk-versoes" class="versoes"><p class="vazio">Nenhuma versão salva ainda.</p></div></div>
+          <div data-skp="config" hidden>
+            <label for="sk-palavras">Palavras que chamam você (separe por vírgula)</label>
+            <input id="sk-palavras" placeholder="atendente, humano, reclamação, cancelar">
+            <div class="linha3">
+              <div><label for="sk-ini">Abre às</label><input id="sk-ini" type="time"></div>
+              <div><label for="sk-fim">Fecha às</label><input id="sk-fim" type="time"></div>
+            </div>
+            <label>Dias</label><div class="dias" id="sk-dias"></div>
+            <p class="dim" style="font-size:13px;margin-top:6px">Sem horário marcado, a IA atende a qualquer hora.</p>
+            <label for="sk-fora">Mensagem fora do horário</label>
+            <input id="sk-fora" placeholder="Oi! Agora estamos fora do horário. Amanhã às 8h a gente responde.">
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="duas" style="margin-top:16px">
+  </section>
+
+  <section data-painel="voz" hidden>
+    <div class="voz-heroi cartao">
+      <div><span class="voz-selo">Plano Voz</span><h2>A IA responde com a <em>sua voz</em>.</h2>
+        <p class="dim">Grave ou envie áudios seus falando naturalmente (mínimo 10 minutos no total, quanto mais melhor). A gente treina a sua voz na nossa GPU e a IA passa a mandar notas de voz como se fosse você.</p></div>
+      <div class="voz-status" id="voz-status"></div>
+    </div>
+    <div class="duas">
       <div class="cartao">
-        <h3>Testar antes de ligar</h3>
-        <p class="dim">Escreva como se fosse o cliente. Nada é enviado.</p>
-        <div class="chat curto" id="ts-chat"></div>
-        <form class="linha" id="ts-form"><input id="ts-txt" placeholder="Ex.: quanto custa a entrega?" autocomplete="off"><button class="btn btn-sec">Testar</button></form>
+        <h3>1. Suas gravações</h3>
+        <p class="dim">Fale como fala com cliente: explique um produto, conte uma história, leia um texto. Sem música de fundo.</p>
+        <div class="voz-grava"><button class="btn btn-pri" id="voz-rec">● Gravar</button><span id="voz-tempo" class="dim">00:00</span>
+          <label class="btn btn-sec">Enviar arquivos de áudio<input type="file" id="voz-arq" accept="audio/*" multiple hidden></label></div>
+        <div class="barra-voz"><span id="voz-barra"></span></div>
+        <p class="dim" id="voz-total"></p>
+        <div class="msg" id="voz-msg" role="status"></div>
+        <button class="btn btn-pri" id="voz-treinar" style="margin-top:12px">2. Treinar minha voz</button>
       </div>
       <div class="cartao">
-        <h3>Versões</h3>
-        <div id="sk-versoes" class="versoes"><p class="vazio">Nenhuma versão salva ainda.</p></div>
+        <h3>3. Ouvir e usar</h3>
+        <label for="voz-frase">Frase de teste</label>
+        <input id="voz-frase" value="Oi! Tudo bem? Aqui é do atendimento. Como posso te ajudar hoje?">
+        <button class="btn btn-sec" id="voz-ouvir" style="margin:10px 0">▶ Ouvir na minha voz</button>
+        <audio id="voz-player" controls hidden></audio>
+        <h4 class="sk-sub">Quando responder em áudio</h4>
+        <div id="voz-contas"></div>
       </div>
     </div>
   </section>
