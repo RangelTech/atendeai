@@ -112,7 +112,7 @@ def test_passo_com_erro_traduzido_e_conectado(ambiente):
     comprar(c)
     cid = c.post("/api/contas", json={"aceite": True}).json()["id"]
     r = c.post(f"/api/contas/{cid}/passo", json={"passo": "s1", "tipo": "credentials", "dados": {"password": "errada"}}).json()
-    assert r["passo"]["erro"] == "Usuário ou senha errados."
+    assert r["passo"]["erro"].startswith("Não deu para entrar")
     gf.estado = "connected"
     assert c.get(f"/api/contas/{cid}").json()["estado"] == "connected"
     assert gf.entregas and gf.entregas[0]["webhook_url"].endswith(f"/hooks/canal/{cid}")

@@ -32,7 +32,7 @@ VERSAO_INICIO = str(int(time.time()))
 ESTADOS_PT = {"pending_auth": "Aguardando login", "awaiting_2fa": "Aguardando código", "awaiting_challenge": "Aguardando confirmação",
               "connected": "Conectada", "degraded": "Instável", "reauth_required": "Precisa entrar de novo",
               "disconnected": "Desconectada", "revoked": "Removida"}
-ERROS_PT = {"wrong_password": "Usuário ou senha errados.", "wrong_code": "Código errado.", "account_locked": "A rede bloqueou a conta por segurança. Entre pelo app e libere.",
+ERROS_PT = {"wrong_password": "Não deu para entrar. Confira usuário e senha; se estiverem certos, tente de novo em alguns minutos.", "wrong_code": "Código errado.", "account_locked": "A rede bloqueou a conta por segurança. Entre pelo app e libere.",
             "checkpoint_required": "A rede pediu uma confirmação no app. Confirme lá e tente de novo.", "timeout": "Demorou demais. Tente de novo.",
             "too_many_attempts": "Muitas tentativas. Espere alguns minutos.", "provider_unavailable": "A rede não respondeu agora. Tente de novo em instantes.",
             "unsupported_step": "Essa etapa ainda não é suportada.", "consent_required": "Aceite os termos para conectar."}
