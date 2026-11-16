@@ -104,7 +104,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
 
     def vista_conta(k: dict, view: dict | None = None) -> dict:
         out = {"id": k["id"], "marca": k["marca"], "provider": k["provider"], "estado": k["estado"], "estado_pt": ESTADOS_PT.get(k["estado"], k["estado"]),
-               "rotulo": k["rotulo"], "ia_ligada": bool(k["ia_ligada"]), "criado": k["criado"], "ja_conectou": bool(k.get("ja_conectou"))}
+               "rotulo": k["rotulo"], "ia_ligada": bool(k["ia_ligada"]), "criado": k["criado"], "ja_conectou": bool(k.get("ja_conectou")),
+               "modo_teste": bool(k.get("so_liberadas"))}
         if view:
             passo = view.get("step") or {}
             if passo:
@@ -280,6 +281,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 view = gw.desconectar(conta_gw(u), cid, str(u["id"]))
             elif acao == "reconectar":
                 view = gw.reconectar(conta_gw(u), cid, str(u["id"]))
+            elif acao in ("ligar_teste", "desligar_teste"):
+                db.exec("UPDATE contas SET so_liberadas=? WHERE id=?", (1 if acao == "ligar_teste" else 0, cid))
+                return vista_conta(db.um("SELECT * FROM contas WHERE id=?", (cid,)))
             elif acao in ("ligar_ia", "desligar_ia"):
                 db.exec("UPDATE contas SET ia_ligada=? WHERE id=?", (1 if acao == "ligar_ia" else 0, cid))
                 return vista_conta(db.um("SELECT * FROM contas WHERE id=?", (cid,)))
@@ -294,9 +298,11 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         return db.um("SELECT * FROM skills WHERE usuario=? AND marca=?", (uid, marca)) or {"texto": "", "horario": "", "palavras_humano": "atendente,humano,pessoa,reclamação", "fora_horario": ""}
 
     def responder(conversa_id: int, texto: str) -> None:
-        c = db.um("SELECT c.*, k.usuario, k.marca, k.ia_ligada, k.estado FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=?", (conversa_id,))
+        c = db.um("SELECT c.*, k.usuario, k.marca, k.ia_ligada, k.estado, k.so_liberadas FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=?", (conversa_id,))
         if not c or not c["ia_ligada"] or c["estado"] != "connected" and not cfg.dev:
             return
+        if c["so_liberadas"] and not c["liberada"]:
+            return  # modo teste: só as conversas que o dono liberou
         u = db.um("SELECT * FROM usuarios WHERE id=?", (c["usuario"],))
         r = resumo(u, c["marca"])
         if not r["assinante"] or r["usadas"] >= r["limite_msgs"]:
@@ -370,13 +376,13 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     @app.get("/api/conversas")
     def conversas(request: Request):
         u = usuario(request)
-        return {"conversas": db.todos("""SELECT c.id, c.contato, c.modo, c.ultima, c.nao_lidas, k.rotulo AS conta,
+        return {"conversas": db.todos("""SELECT c.id, c.contato, c.modo, c.ultima, c.nao_lidas, c.liberada, k.so_liberadas AS modo_teste, k.rotulo AS conta,
                                          (SELECT texto FROM mensagens m WHERE m.conversa=c.id ORDER BY criado DESC, id DESC LIMIT 1) AS previa
                                     FROM conversas c JOIN contas k ON k.id=c.conta WHERE k.usuario=? AND k.marca=? ORDER BY c.ultima DESC LIMIT 200""",
                                       (u["id"], marca_de(request)))}
 
     def minha_conversa(u: dict, conv: int) -> dict:
-        c = db.um("SELECT c.*, k.usuario FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=? AND k.usuario=?", (conv, u["id"]))
+        c = db.um("SELECT c.*, k.usuario, k.so_liberadas FROM conversas c JOIN contas k ON k.id=c.conta WHERE c.id=? AND k.usuario=?", (conv, u["id"]))
         if not c:
             raise HTTPException(404, "conversa não encontrada")
         return c
@@ -386,7 +392,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         u = usuario(request)
         c = minha_conversa(u, conv)
         db.exec("UPDATE conversas SET nao_lidas=0 WHERE id=?", (conv,))
-        return {"id": c["id"], "contato": c["contato"], "modo": c["modo"],
+        return {"id": c["id"], "contato": c["contato"], "modo": c["modo"], "modo_teste": bool(c["so_liberadas"]), "liberada": bool(c["liberada"]),
                 "mensagens": db.todos("SELECT direcao, texto, criado FROM mensagens WHERE conversa=? ORDER BY criado, id LIMIT 500", (conv,))}
 
     @app.post("/api/conversas/{conv}/{acao}")
@@ -396,6 +402,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if acao in ("assumir", "devolver"):
             db.exec("UPDATE conversas SET modo=? WHERE id=?", ("humano" if acao == "assumir" else "ia", conv))
             return {"ok": True, "modo": "humano" if acao == "assumir" else "ia"}
+        if acao in ("liberar", "bloquear"):
+            db.exec("UPDATE conversas SET liberada=? WHERE id=?", (1 if acao == "liberar" else 0, conv))
+            return {"ok": True, "liberada": acao == "liberar"}
         if acao != "enviar":
             raise HTTPException(404, "ação desconhecida")
         texto = str((await request.json()).get("texto") or "").strip()[:1500]

@@ -64,10 +64,13 @@
     const d = $('#conv-detalhe')
     const rolarFim = !silencioso || (() => { const m = $('.conv-msgs', d); return !m || m.scrollTop + m.clientHeight >= m.scrollHeight - 40 })()
     d.innerHTML = `<div class="conv-cab"><div><b>${esc(c.contato || 'Contato')}</b> ${c.modo === 'humano' ? '<span class="tag humano">você está atendendo</span>' : '<span class="tag">IA atendendo</span>'}</div>
-        ${c.modo === 'humano' ? '<button class="btn btn-sec sm" id="devolver">Devolver para a IA</button>' : '<button class="btn btn-sec sm" id="assumir">Assumir conversa</button>'}</div>
+        <div class="acoes">${c.modo_teste ? (c.liberada ? '<button class="btn btn-ghost sm" id="bloquear">Tirar do teste</button>' : '<button class="btn btn-pri sm" id="liberar">Liberar IA nesta conversa</button>') : ''}
+        ${c.modo === 'humano' ? '<button class="btn btn-sec sm" id="devolver">Devolver para a IA</button>' : '<button class="btn btn-sec sm" id="assumir">Assumir conversa</button>'}</div></div>
       <div class="conv-msgs">${c.mensagens.map((m) => `<div class="fala ${m.direcao === 'eco' ? 'humano' : esc(m.direcao)}">${esc(m.texto)}<span class="quem">${QUEM[m.direcao] || ''} · ${hora(m.criado)}</span></div>`).join('')}</div>
       <form class="conv-env" id="env"><input id="env-txt" placeholder="Escreva como você (a IA para nesta conversa)" autocomplete="off"><button class="btn btn-pri">Enviar</button></form>`
     if (rolarFim) { const m = $('.conv-msgs', d); m.scrollTop = m.scrollHeight }
+    $('#liberar', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/liberar`); abrirConversa(id) })
+    $('#bloquear', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/bloquear`); abrirConversa(id) })
     $('#assumir', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/assumir`); abrirConversa(id) ; carregarConversas() })
     $('#devolver', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/devolver`); abrirConversa(id); carregarConversas() })
     $('#env', d).onsubmit = async (e) => {
@@ -152,10 +155,11 @@
   async function carregarContas() {
     const j = await api('/api/contas')
     $('#lista-contas').innerHTML = j.contas.length ? j.contas.map((k) => `<div class="conta-linha"><div><b>${esc(k.rotulo || window.MARCA.rede)}</b> <span class="tag ${TAG[k.estado] || ''}">${esc(k.estado_pt)}</span>
-        <p class="dim" style="font-size:13px">IA ${k.ia_ligada ? 'ligada' : 'desligada'} nesta conta</p></div>
+        <p class="dim" style="font-size:13px">IA ${k.ia_ligada ? 'ligada' : 'desligada'} nesta conta${k.modo_teste ? ' · <b>modo teste</b>: só responde as conversas que você liberar' : ''}</p></div>
       <div class="acoes">
         ${k.estado === 'connected' ? '' : `<button class="btn btn-pri sm" data-k="${k.id}" data-a="${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'continuar' : 'reconectar'}">${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'Continuar' : 'Reconectar'}</button>`}
         <button class="btn btn-sec sm" data-k="${k.id}" data-a="${k.ia_ligada ? 'desligar_ia' : 'ligar_ia'}">${k.ia_ligada ? 'Pausar IA' : 'Ligar IA'}</button>
+        <button class="btn btn-ghost sm" data-k="${k.id}" data-a="${k.modo_teste ? 'desligar_teste' : 'ligar_teste'}" title="Com o modo teste, a IA só responde as conversas que você liberar">${k.modo_teste ? 'Sair do modo teste' : 'Modo teste'}</button>
         ${k.estado === 'connected' ? `<button class="btn btn-ghost sm" data-k="${k.id}" data-a="desconectar">Desconectar</button>` : ''}
         <button class="btn btn-ghost sm perigo" data-k="${k.id}" data-a="excluir">Excluir</button></div></div>`).join('')
       : `<p class="vazio">Nenhuma conta conectada. ${esc(window.MARCA.conecta)}</p>`

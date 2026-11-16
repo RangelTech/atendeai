@@ -285,3 +285,18 @@ def test_tentativa_nao_conectada_fica_fora_da_lista_e_excluir(ambiente):
     assert [k["id"] for k in lista] == [r2["id"]]
     assert c.delete(f"/api/contas/{r2['id']}").json()["ok"] is True
     assert c.get("/api/contas").json()["contas"] == []
+
+
+def test_modo_teste_so_responde_conversa_liberada(ambiente):
+    c, gf, app = ambiente
+    cid, seg = preparar_conta(c, app)
+    assert c.post(f"/api/contas/{cid}/ligar_teste").json()["modo_teste"] is True
+    corpo = evento("t1", "quanto custa a pizza grande?")
+    c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo))
+    assert gf.enviadas == []  # conversa ainda não liberada: a IA fica quieta
+    conv = c.get("/api/conversas").json()["conversas"][0]
+    assert conv["modo_teste"] and not conv["liberada"]
+    assert c.post(f"/api/conversas/{conv['id']}/liberar").json()["liberada"] is True
+    corpo = evento("t2", "quanto custa a pizza grande?")
+    c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo))
+    assert gf.enviadas[-1]["text"] == "A pizza grande custa R$ 59."

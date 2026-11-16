@@ -92,6 +92,11 @@ class Banco:
         if "ja_conectou" not in cols:  # só entra na lista a conta que conectou ao menos uma vez (16/11)
             self.con.execute("ALTER TABLE contas ADD COLUMN ja_conectou INTEGER NOT NULL DEFAULT 0")
             self.con.execute("UPDATE contas SET ja_conectou=1 WHERE estado IN ('connected','degraded','reauth_required')")
+        if "so_liberadas" not in cols:  # modo teste: a IA só responde conversas liberadas uma a uma (16/11)
+            self.con.execute("ALTER TABLE contas ADD COLUMN so_liberadas INTEGER NOT NULL DEFAULT 0")
+        ccols = {r[1] for r in self.con.execute("PRAGMA table_info(conversas)")}
+        if "liberada" not in ccols:
+            self.con.execute("ALTER TABLE conversas ADD COLUMN liberada INTEGER NOT NULL DEFAULT 0")
 
     @contextmanager
     def tx(self):
