@@ -156,12 +156,15 @@
       <div class="acoes">
         ${k.estado === 'connected' ? '' : `<button class="btn btn-pri sm" data-k="${k.id}" data-a="${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'continuar' : 'reconectar'}">${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'Continuar' : 'Reconectar'}</button>`}
         <button class="btn btn-sec sm" data-k="${k.id}" data-a="${k.ia_ligada ? 'desligar_ia' : 'ligar_ia'}">${k.ia_ligada ? 'Pausar IA' : 'Ligar IA'}</button>
-        <button class="btn btn-ghost sm" data-k="${k.id}" data-a="desconectar">Desconectar</button></div></div>`).join('')
+        ${k.estado === 'connected' ? `<button class="btn btn-ghost sm" data-k="${k.id}" data-a="desconectar">Desconectar</button>` : ''}
+        <button class="btn btn-ghost sm perigo" data-k="${k.id}" data-a="excluir">Excluir</button></div></div>`).join('')
       : `<p class="vazio">Nenhuma conta conectada. ${esc(window.MARCA.conecta)}</p>`
     $$('[data-k]').forEach((b) => (b.onclick = async () => {
       const id = b.dataset.k, a = b.dataset.a
       if (a === 'desconectar' && !confirm('Desconectar esta conta? A IA para de responder até você conectar de novo.')) return
+      if (a === 'excluir' && !confirm('Excluir esta conexão? Ela sai da lista e as conversas dela são apagadas daqui.')) return
       try {
+        if (a === 'excluir') { await api('/api/contas/' + id, { method: 'DELETE' }); carregarContas(); carregarConta(); return }
         if (a === 'continuar') return abrirLogin(await api('/api/contas/' + id))
         const r = await post(`/api/contas/${id}/${a}`)
         if (a === 'reconectar') return abrirLogin(r)
@@ -174,7 +177,12 @@
   const modal = $('#m-conectar')
   modal.addEventListener('click', (e) => { if (e.target === modal || e.target.closest('[data-fechar]')) fecharModal() })
   let poll = null
-  function fecharModal() { modal.hidden = true; clearTimeout(poll); carregarContas(); carregarConta() }
+  let tentativa = null  // conexão aberta no modal que ainda não conectou: some ao fechar
+  async function fecharModal() {
+    modal.hidden = true; clearTimeout(poll)
+    if (tentativa) { const id = tentativa; tentativa = null; try { await api('/api/contas/' + id, { method: 'DELETE' }) } catch {} }
+    carregarContas(); carregarConta()
+  }
   $('#nova-conta').onclick = () => {
     modal.hidden = false
     $('#mc-corpo').innerHTML = `<h3 id="mc-tit">Conectar ${esc(window.MARCA.rede)}</h3><p>${esc(window.MARCA.conecta)}</p>
@@ -194,6 +202,7 @@
     modal.hidden = false
     clearTimeout(poll)
     const corpo = $('#mc-corpo')
+    tentativa = v.estado === 'connected' || v.ja_conectou ? null : v.id
     if (v.estado === 'connected') {
       corpo.innerHTML = `<h3 id="mc-tit">Conectado!</h3><p>${esc(v.rotulo || '')} está pronto. Agora escreva ou revise as regras e teste antes de deixar a IA atender.</p>
         <button class="btn btn-pri" style="width:100%" id="mc-fim">Ir para as regras</button>`

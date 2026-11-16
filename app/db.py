@@ -88,6 +88,10 @@ class Banco:
         self.con.row_factory = sqlite3.Row
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.executescript(ESQUEMA)
+        cols = {r[1] for r in self.con.execute("PRAGMA table_info(contas)")}
+        if "ja_conectou" not in cols:  # só entra na lista a conta que conectou ao menos uma vez (16/11)
+            self.con.execute("ALTER TABLE contas ADD COLUMN ja_conectou INTEGER NOT NULL DEFAULT 0")
+            self.con.execute("UPDATE contas SET ja_conectou=1 WHERE estado IN ('connected','degraded','reauth_required')")
 
     @contextmanager
     def tx(self):

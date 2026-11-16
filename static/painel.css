@@ -55,3 +55,5 @@
 
 .desafio{display:block;max-width:100%;margin:8px auto 4px;border-radius:12px;background:#fff;padding:8px}
 #mc-form select{width:100%;background:var(--bg2,#0d0f13);border:1px solid var(--bd,#1f242d);border-radius:12px;padding:13px 14px;color:inherit;font:inherit}
+.btn.perigo{color:#f87171}
+.btn.perigo:hover{border-color:#f87171}

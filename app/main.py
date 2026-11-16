@@ -87,7 +87,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def resumo(u: dict, marca: str) -> dict:
         a = assinatura(u, marca)
         pl = PLANOS.get(a["plano"]) if a else None
-        contas = db.um("SELECT COUNT(*) n FROM contas WHERE usuario=? AND marca=? AND estado!='revoked'", (u["id"], marca))["n"]
+        contas = db.um("SELECT COUNT(*) n FROM contas WHERE usuario=? AND marca=? AND estado!='revoked' AND ja_conectou=1", (u["id"], marca))["n"]
         return {"email": u["email"], "marca": publica(marca), "assinante": bool(a), "plano": a["plano"] if a else None,
                 "ativo_ate": a["ativo_ate"] if a else 0, "limite_contas": pl["contas"] if pl else 0, "contas": contas,
                 "limite_msgs": pl["msgs_mes"] if pl else 0, "usadas": usadas_mes(u["id"], marca), "planos": planos_publicos(marca),
@@ -104,7 +104,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
 
     def vista_conta(k: dict, view: dict | None = None) -> dict:
         out = {"id": k["id"], "marca": k["marca"], "provider": k["provider"], "estado": k["estado"], "estado_pt": ESTADOS_PT.get(k["estado"], k["estado"]),
-               "rotulo": k["rotulo"], "ia_ligada": bool(k["ia_ligada"]), "criado": k["criado"]}
+               "rotulo": k["rotulo"], "ia_ligada": bool(k["ia_ligada"]), "criado": k["criado"], "ja_conectou": bool(k.get("ja_conectou"))}
         if view:
             passo = view.get("step") or {}
             if passo:
@@ -122,9 +122,27 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         estado = con.get("state") or k["estado"]
         rotulo = con.get("external_label") or k["rotulo"]
         if estado != k["estado"] or rotulo != k["rotulo"]:
-            db.exec("UPDATE contas SET estado=?, rotulo=?, atualizado=? WHERE id=?", (estado, rotulo or "", agora(), k["id"]))
-            k = {**k, "estado": estado, "rotulo": rotulo or ""}
+            ja = 1 if estado == "connected" else int(k.get("ja_conectou") or 0)
+            db.exec("UPDATE contas SET estado=?, rotulo=?, ja_conectou=?, atualizado=? WHERE id=?", (estado, rotulo or "", ja, agora(), k["id"]))
+            k = {**k, "estado": estado, "rotulo": rotulo or "", "ja_conectou": ja}
         return k
+
+    def apagar_conta(u: dict, k: dict) -> None:
+        """Encerra no gateway (sem travar se já sumiu lá) e apaga conta, conversas e mensagens daqui."""
+        for f in (lambda: gw.cancelar(conta_gw(u), k["id"]), lambda: gw.desconectar(conta_gw(u), k["id"], str(u["id"]))):
+            try:
+                f()
+            except Exception as e:  # noqa: BLE001
+                log.info("encerrar %s no gateway: %s", k["id"], e)
+        for c in db.todos("SELECT id FROM conversas WHERE conta=?", (k["id"],)):
+            db.exec("DELETE FROM mensagens WHERE conversa=?", (c["id"],))
+        db.exec("DELETE FROM conversas WHERE conta=?", (k["id"],))
+        db.exec("DELETE FROM contas WHERE id=?", (k["id"],))
+
+    def limpar_tentativas(u: dict, marca: str) -> None:
+        """Tentativa que nunca conectou não fica guardada: some ao começar outra."""
+        for k in db.todos("SELECT * FROM contas WHERE usuario=? AND marca=? AND ja_conectou=0", (u["id"], marca)):
+            apagar_conta(u, k)
 
     def erro_canal(e: CanalErro):
         raise HTTPException(e.status if 400 <= e.status < 600 else 502, ERROS_PT.get(e.codigo, "A conexão não respondeu agora. Tente de novo."))
@@ -192,7 +210,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     @app.get("/api/contas")
     def contas(request: Request):
         u = usuario(request)
-        return {"contas": [vista_conta(k) for k in db.todos("SELECT * FROM contas WHERE usuario=? AND marca=? AND estado!='revoked' ORDER BY criado", (u["id"], marca_de(request)))]}
+        return {"contas": [vista_conta(k) for k in db.todos("SELECT * FROM contas WHERE usuario=? AND marca=? AND estado!='revoked' AND ja_conectou=1 ORDER BY criado", (u["id"], marca_de(request)))]}
 
     @app.post("/api/contas")
     async def conectar(request: Request):
@@ -207,6 +225,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if not b.get("aceite"):
             raise HTTPException(422, "aceite os termos de conexão para continuar")
         # QR/código de pareamento só existem no WhatsApp; Instagram e Facebook entram por usuário e senha (fluxo padrão do gateway)
+        limpar_tentativas(u, m)
         fluxo = b.get("fluxo") if MARCAS[m]["provider"] == "whatsapp" and b.get("fluxo") in ("qr", "phone") else None
         try:
             view = gw.conectar(conta_gw(u), MARCAS[m]["provider"], str(u["id"]), fluxo)
@@ -231,6 +250,12 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         except CanalErro as e:
             erro_canal(e)
         return vista_conta(atualizar_de_view(k, view), view)
+
+    @app.delete("/api/contas/{cid}")
+    def conta_excluir(cid: str, request: Request):
+        u = usuario(request)
+        apagar_conta(u, minha_conta(u, cid))
+        return {"ok": True}
 
     @app.post("/api/contas/{cid}/passo")
     async def conta_passo(cid: str, request: Request):

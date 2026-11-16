@@ -90,14 +90,17 @@ def test_marca_pelo_host(ambiente):
 
 
 def test_conectar_exige_plano_e_aceite(ambiente):
-    c, _, _ = ambiente
+    c, gf, _ = ambiente
     assert c.post("/api/contas", json={"aceite": True}).status_code == 402
     comprar(c)
     assert c.post("/api/contas", json={}).status_code == 422
     r = c.post("/api/contas", json={"aceite": True}).json()
     assert r["passo"]["qr"] == "2@QRFALSO" and r["estado"] == "pending_auth"
-    c.post("/api/contas", json={"aceite": True})
-    assert c.post("/api/contas", json={"aceite": True}).status_code == 402  # Pro = 2 contas
+    gf.estado = "connected"
+    c.get(f"/api/contas/{r['id']}")  # conectou: passa a contar no limite
+    r2 = c.post("/api/contas", json={"aceite": True}).json()
+    c.get(f"/api/contas/{r2['id']}")
+    assert c.post("/api/contas", json={"aceite": True}).status_code == 402  # Pro = 2 contas conectadas
 
 
 def test_passo_com_erro_traduzido_e_conectado(ambiente):
@@ -267,3 +270,18 @@ def test_fluxo_qr_so_no_whatsapp(tmp_path):
         c.post("/api/cakto", json={"secret": "ck", "event": "purchase_approved", "data": {"id": "ped-" + prod, "customer": {"email": "loja@x.com"}, "product": {"id": prod}}})
         assert c.post("/api/contas", json={"aceite": True, "fluxo": "phone"}).status_code == 200
         assert gf.fluxos[-1] == esperado, host
+
+
+def test_tentativa_nao_conectada_fica_fora_da_lista_e_excluir(ambiente):
+    c, gf, _ = ambiente
+    comprar(c)
+    r = c.post("/api/contas", json={"aceite": True}).json()
+    assert c.get("/api/contas").json()["contas"] == []  # aguardando login: não entra na lista
+    r2 = c.post("/api/contas", json={"aceite": True}).json()  # nova tentativa limpa a anterior
+    assert c.get(f"/api/contas/{r['id']}").status_code == 404
+    gf.estado = "connected"
+    assert c.get(f"/api/contas/{r2['id']}").json()["estado"] == "connected"
+    lista = c.get("/api/contas").json()["contas"]
+    assert [k["id"] for k in lista] == [r2["id"]]
+    assert c.delete(f"/api/contas/{r2['id']}").json()["ok"] is True
+    assert c.get("/api/contas").json()["contas"] == []
