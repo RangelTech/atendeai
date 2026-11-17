@@ -24,7 +24,7 @@ PERSONALIDADE (escrita pelo próprio {nome} e pela equipe dele):
 
 Regras fixas:
 - Escreva como gente digitando no WhatsApp: de 1 a 3 mensagens BEM curtas (de 2 a 10 palavras cada; resposta inteira com no máximo 25 palavras), separadas por uma linha em branco.
-  Nada de parágrafo, lista, passo a passo ou textão. Gíria, "kkkk", pergunta de volta de vez em quando. Ex.:
+  Nada de parágrafo, lista, passo a passo ou textão. Não repita pergunta que já fez; siga o assunto do fã com coerência. Gíria, "kkkk", pergunta de volta de vez em quando. Ex.:
   Kkkk já sim sô
 
   Caí feio num treino de laço
@@ -74,7 +74,8 @@ def mesmo_numero(a: str, b: str) -> bool:
     return bool(a and b and chaves(a) & chaves(b))
 
 
-def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Callable[[list[dict]], str], veio_audio: bool = False) -> dict:
+def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Callable[[list[dict]], str], veio_audio: bool = False,
+              revisao: bool = False) -> dict:
     """Devolve {"texto": str, "voz": bool, "foto": str|None}."""
     msgs = [{"role": "system", "content": SISTEMA.format(nome=nome, skill=(skill or "").strip()[:16000] or f"Seja simpático e autêntico como {nome}.")}]
     for m in historico[-16:]:
@@ -87,20 +88,54 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
     if veio_audio:
         msgs.append({"role": "system", "content": "O fã mandou áudio: responda em áudio ([VOZ])."})
     r = _MARCA_AUDIO.sub("", html.unescape(llm(msgs) or "")).strip()
+    if revisao:
+        r = revisar(r, texto, historico, nome, skill, llm)
     foto = None
     m = _FOTO.search(r)
     if m:
         foto = m.group(1).strip().strip('"')
         r = _FOTO.sub("", r).strip()
+    if not foto and PEDE_FOTO.search(texto or "") and PEDIDO.search(texto or "") and not texto.startswith("[o fã mandou"):
+        foto = ("eu e você, " if JUNTOS.search(texto) else "eu, ") + re.sub(r"\s+", " ", texto)[:200]  # pediu foto e o modelo esqueceu
     voz = bool(re.match(r"^\s*\[voz\]", r, re.I))
     r = re.sub(r"^\s*\[voz\]\s*", "", r, flags=re.I).strip()
     r = re.sub(r"\[(?:humano|chamar)\]", "", r, flags=re.I).strip()
-    r = re.sub(r"^(?:\s*\[[A-ZÀ-Ú_ ]{2,20}\]\s*)+", "", r).strip()  # marcas soltas que o modelo inventa ([AHORA], [TEXTO]...)
+    r = re.sub(r"^(?:\s*\[[A-ZÀ-Ú_ ]{2,20}\]\s*)+", "", r).strip()
+    r = re.sub(r"\[(?!foto)[A-Za-zÀ-ú_ ]{2,20}:[^\]]*\]", "", r).strip()  # marcas inventadas ([TOMBO: ...]) nunca vão para o fã  # marcas soltas que o modelo inventa ([AHORA], [TEXTO]...)
     return {"texto": r[:1500], "voz": voz, "foto": foto}
 
 
-DISSE_QUE_MANDOU = re.compile(r"(sou eu|essa (a[ií] )?(sou|é) eu|segue( a)? foto|mandei( a)? foto|olha (a )?foto|aqui (a|minha) foto|foto minha)", re.I)
+DISSE_QUE_MANDOU = re.compile(r"(sou eu|essa (a[ií] )?(sou|é) eu|segue( a)? foto|mandei( a)? foto|olha (a )?foto|aqui (est[aá] )?(a|minha) foto|chegou a foto)", re.I)
 JUNTOS = re.compile(r"\b(voc[eê]|vc|n[oó]s|nos dois|juntos|com o f[aã])\b", re.I)
+
+
+REVISAO = """Você revisa a resposta da IA do {nome} antes dela ir pro fã no WhatsApp. Conversa recente:
+{historico}
+
+Última mensagem do fã: {fala}
+Rascunho da resposta: {rascunho}
+
+Corrija o rascunho se tiver: frase sem sentido, erro de português ou de digitação, fato inventado que contradiz a PERSONALIDADE,
+resposta que não responde o fã, repetição de pergunta já feita, texto longo (máximo 3 mensagens curtas separadas por linha em branco),
+ou foto pedida pelo fã sem a marca [FOTO: ...] (se o fã pediu foto, a resposta TEM que terminar com [FOTO: cena]; se pediu foto dos dois, a cena começa com "eu e você").
+Mantenha o jeito do {nome}, as marcas [VOZ] e [FOTO: ...] quando fizerem sentido, e nada de comentário seu.
+Responda SÓ com a resposta final, pronta para enviar.
+PERSONALIDADE:
+{skill}"""
+
+PEDE_FOTO = re.compile(r"(foto|selfie|imagem)", re.I)
+PEDIDO = re.compile(r"(manda|mande|faz|faça|tira|tire|me (manda|envia)|quero|bora|cad[eê])", re.I)
+
+
+def revisar(rascunho: str, fala: str, historico: list[dict], nome: str, skill: str, llm: Callable[[list[dict]], str]) -> str:
+    """Segunda passada: o próprio modelo confere coerência e formato antes de entregar. Falhou ou veio vazio: fica o rascunho."""
+    hist = chr(10).join(("Fã: " if m["direcao"] == "entrada" else nome + ": ") + m["texto"][:200] for m in historico[-10:])
+    try:
+        r = (llm([{"role": "user", "content": REVISAO.format(nome=nome, historico=hist, fala=fala[:500], rascunho=rascunho[:1500], skill=(skill or "")[:6000])}]) or "").strip()
+    except Exception:  # noqa: BLE001
+        return rascunho
+    r = html.unescape(r).strip().strip('"')
+    return r if 0 < len(r) <= 1200 else rascunho
 
 
 def bolhas(texto: str, maximo: int = 3, limite: int = 110) -> list[str]:

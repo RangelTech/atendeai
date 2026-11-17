@@ -36,6 +36,7 @@ class Config:
     voz_token: str = ""
     imagem_base: str = ""     # llm-access (GPT de imagem) para as fotos da persona; vazio = usa llm_base
     imagem_key: str = ""
+    persona_modelo: str = ""  # vazio = persona pelo Hermes dos produtos (Qwen); "rt-planejar" = GPT pelo llm-access
 
 
 def carregar() -> Config:
@@ -66,6 +67,7 @@ def carregar() -> Config:
         voz_token=e("ATENDEAI_VOZ_TOKEN", ""),
         imagem_base=e("ATENDEAI_IMAGEM_BASE", "").rstrip("/"),
         imagem_key=e("ATENDEAI_IMAGEM_KEY", ""),
+        persona_modelo=e("ATENDEAI_PERSONA_MODELO", ""),
         lancamento_ate=e("ATENDEAI_LANCAMENTO_ATE", "2026-12-15"),
         dev=e("ATENDEAI_DEV", "") == "1",
     )

@@ -379,6 +379,15 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 (conversa_id, f"{tipo}:{chave}", "ia", registro, agora(), audio_nome))
         return True
 
+    def llm_persona(mensagens: list[dict]) -> str:
+        """Persona conversa com GPT pelo llm-access (chave própria); sem chave, cai no modelo padrão do produto."""
+        if llm or not cfg.persona_modelo or not (cfg.imagem_base and cfg.imagem_key):
+            return chamar_llm(mensagens)
+        r = httpx.post(cfg.imagem_base + "/chat/completions", headers={"Authorization": f"Bearer {cfg.imagem_key}"}, timeout=120,
+                       json={"model": cfg.persona_modelo, "messages": mensagens, "temperature": 0.6, "max_tokens": 1200})
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"] or ""
+
     def responder_fa(c: dict, conversa_id: int, texto: str, veio_audio: bool) -> None:
         """Fã ativo: conversa até o limite do plano. Sem plano: N respostas de teste e depois o convite (no máximo 1 a cada 12 h)."""
         marca, nome = c["marca"], MARCAS[c["marca"]]["pessoa"]
@@ -405,7 +414,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         hist = db.todos("SELECT direcao, texto FROM mensagens WHERE conversa=? AND (externo IS NULL OR externo NOT LIKE 'sis:%') ORDER BY criado DESC, id DESC LIMIT 16",
                         (conversa_id,))[::-1]
         try:
-            d = pers.conversar(texto, hist, nome, skill_de(c["usuario"], marca).get("texto") or "", chamar_llm, veio_audio)
+            d = pers.conversar(texto, hist, nome, skill_de(c["usuario"], marca).get("texto") or "", llm_persona, veio_audio, revisao=not llm)
         except Exception as e:  # noqa: BLE001
             log.warning("persona sem resposta na conversa %s: %s", conversa_id, e)
             return
