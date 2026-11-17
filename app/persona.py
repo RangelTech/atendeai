@@ -11,6 +11,7 @@ Puro: o chamador injeta `llm(mensagens) -> str`.
 from __future__ import annotations
 
 import html
+import json
 import re
 from typing import Callable
 
@@ -119,7 +120,7 @@ Corrija o rascunho se tiver: frase sem sentido, erro de português ou de digita�
 resposta que não responde o fã, repetição de pergunta já feita, texto longo (máximo 3 mensagens curtas separadas por linha em branco),
 ou foto pedida pelo fã sem a marca [FOTO: ...] (se o fã pediu foto, a resposta TEM que terminar com [FOTO: cena]; se pediu foto dos dois, a cena começa com "eu e você").
 Mantenha o jeito do {nome}, as marcas [VOZ] e [FOTO: ...] quando fizerem sentido, e nada de comentário seu.
-Responda SÓ com a resposta final, pronta para enviar.
+Responda SÓ com JSON, sem nada antes ou depois: {{"resposta": "texto final pronto para o fã"}}
 PERSONALIDADE:
 {skill}"""
 
@@ -134,8 +135,17 @@ def revisar(rascunho: str, fala: str, historico: list[dict], nome: str, skill: s
         r = (llm([{"role": "user", "content": REVISAO.format(nome=nome, historico=hist, fala=fala[:500], rascunho=rascunho[:1500], skill=(skill or "")[:6000])}]) or "").strip()
     except Exception:  # noqa: BLE001
         return rascunho
-    r = html.unescape(r).strip().strip('"')
-    return r if 0 < len(r) <= 1200 else rascunho
+    try:
+        final = str(json.loads(re.search(r"\{.*\}", r, re.S).group(0)).get("resposta") or "").strip()
+    except Exception:  # noqa: BLE001
+        return rascunho
+    final = html.unescape(final)
+    if not final or len(final) > 1200 or META.search(final):
+        return rascunho
+    return final
+
+
+META = re.compile(r"(rascunho|analisando|revis[aã]o|personagem|o modelo|a ia |persona)", re.I)
 
 
 def bolhas(texto: str, maximo: int = 3, limite: int = 110) -> list[str]:
