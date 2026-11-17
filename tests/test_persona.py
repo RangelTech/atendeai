@@ -172,9 +172,6 @@ def test_foto_do_fa_entra_na_foto_dos_dois(fael, monkeypatch):
 
 
 def test_bolhas_quebra_em_mensagens_curtas():
-    assert pers.bolhas("Kkkk já sim sô
-
-Caí feio
-E você?") == ["Kkkk já sim sô", "Caí feio", "E você?"]
-    assert len(pers.bolhas("
-".join(str(i) for i in range(9)))) == 5
+    nl = chr(10)
+    assert pers.bolhas("Kkkk já sim sô" + nl + nl + "Caí feio" + nl + "E você?") == ["Kkkk já sim sô", "Caí feio", "E você?"]
+    assert len(pers.bolhas(nl.join(str(i) for i in range(9)))) == 5
