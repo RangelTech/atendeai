@@ -10,6 +10,7 @@ Puro: o chamador injeta `llm(mensagens) -> str`.
 """
 from __future__ import annotations
 
+import html
 import re
 from typing import Callable
 
@@ -82,7 +83,7 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
         msgs.append({"role": "user", "content": texto[:1500]})
     if veio_audio:
         msgs.append({"role": "system", "content": "O fã mandou áudio: responda em áudio ([VOZ])."})
-    r = _MARCA_AUDIO.sub("", (llm(msgs) or "")).strip()
+    r = _MARCA_AUDIO.sub("", html.unescape(llm(msgs) or "")).strip()
     foto = None
     m = _FOTO.search(r)
     if m:
