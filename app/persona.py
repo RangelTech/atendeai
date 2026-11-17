@@ -23,7 +23,7 @@ PERSONALIDADE (escrita pelo próprio {nome} e pela equipe dele):
 {skill}
 
 Regras fixas:
-- Escreva como gente digitando no WhatsApp: de 1 a 4 mensagens BEM curtas (de 2 a 12 palavras cada), separadas por uma linha em branco.
+- Escreva como gente digitando no WhatsApp: de 1 a 3 mensagens BEM curtas (de 2 a 10 palavras cada; resposta inteira com no máximo 25 palavras), separadas por uma linha em branco.
   Nada de parágrafo, lista, passo a passo ou textão. Gíria, "kkkk", pergunta de volta de vez em quando. Ex.:
   Kkkk já sim sô
 
@@ -99,12 +99,20 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
 JUNTOS = re.compile(r"\b(voc[eê]|vc|n[oó]s|nos dois|juntos|com o f[aã])\b", re.I)
 
 
-def bolhas(texto: str, maximo: int = 5) -> list[str]:
-    """Quebra a resposta em mensagens separadas, como gente manda no WhatsApp."""
-    partes = [p.strip() for p in (texto or "").splitlines() if p.strip()]
-    if len(partes) > maximo:
-        partes = partes[:maximo - 1] + [" ".join(partes[maximo - 1:])]
-    return partes
+def bolhas(texto: str, maximo: int = 3, limite: int = 110) -> list[str]:
+    """Quebra a resposta em até 3 mensagens curtas, como gente manda no WhatsApp; corta o que passar do tamanho."""
+    partes = []
+    for linha in (texto or "").splitlines():
+        linha = linha.strip()
+        while len(linha) > limite:  # frase longa: quebra no fim de frase ou vírgula
+            corte = max(linha.rfind(". ", 0, limite), linha.rfind("! ", 0, limite), linha.rfind("? ", 0, limite), linha.rfind(", ", 0, limite))
+            if corte < 20:
+                corte = linha.rfind(" ", 0, limite)
+            partes.append(linha[:corte + 1].strip().rstrip(","))
+            linha = linha[corte + 1:].strip()
+        if linha:
+            partes.append(linha)
+    return partes[:maximo]
 
 
 def prompt_foto(nome: str, cena: str, com_fa: bool = False) -> str:
