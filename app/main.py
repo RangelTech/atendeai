@@ -348,12 +348,18 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 return f
         return None
 
-    def gerar_foto(marca: str, cena: str) -> bytes:
+    def foto_do_fa(marca: str, conversa_id: int) -> Path:
+        return PERSONA / marca / "fas" / f"{conversa_id}.jpg"
+
+    def gerar_foto(marca: str, cena: str, fa: Path | None = None) -> bytes:
         refs = ["data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode() for f in fotos_ref(marca)[:3]]
         if not refs:
             raise RuntimeError("sem fotos de referência")
+        com_fa = bool(fa and fa.exists())
+        if com_fa:  # o fã por último: o prompt diz que a última referência é ele
+            refs = refs[:2] + ["data:image/jpeg;base64," + base64.b64encode(fa.read_bytes()).decode()]
         r = httpx.post((cfg.imagem_base or cfg.llm_base) + "/images/generations", headers={"Authorization": f"Bearer {cfg.imagem_key or cfg.llm_key}"}, timeout=420,
-                       json={"prompt": pers.prompt_foto(MARCAS[marca]["pessoa"], cena), "size": "1024x1536", "images": refs})
+                       json={"prompt": pers.prompt_foto(MARCAS[marca]["pessoa"], cena, com_fa), "size": "1024x1536", "images": refs})
         r.raise_for_status()
         d = (r.json().get("data") or [{}])[0]
         if d.get("b64_json"):
@@ -418,7 +424,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             enviar_fa(c, conversa_id, d["texto"], None, d["texto"])
         if d["foto"]:
             try:
-                img = gerar_foto(marca, d["foto"])
+                fa_foto = foto_do_fa(marca, conversa_id)
+                juntos = fa_foto.exists() and time.time() - fa_foto.stat().st_mtime < 7 * 86400 and bool(pers.JUNTOS.search(d["foto"]))
+                img = gerar_foto(marca, d["foto"], fa_foto if juntos else None)
                 mime = "image/jpeg" if img[:2] == b"\xff\xd8" else "image/png"
                 anexo = {"kind": "image", "mime": mime, "name": "foto.jpg" if mime == "image/jpeg" else "foto.png",
                          "url": f"data:{mime};base64," + base64.b64encode(img).decode()}
@@ -630,15 +638,30 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if direcao == "entrada":
             db.exec("UPDATE conversas SET nao_lidas=nao_lidas+1 WHERE id=?", (c["id"],))
             audio = next((a for a in msg.get("attachments") or [] if a.get("kind") == "audio" and a.get("url")), None)
+            imagem = next((a for a in msg.get("attachments") or [] if a.get("kind") == "image" and a.get("url")), None) if eh_persona(k["marca"]) else None
             ext = str(msg.get("external_id") or eid)
             if sincrono:
-                processar_entrada(k, c["id"], ext, texto, audio)
+                processar_entrada(k, c["id"], ext, texto, audio, imagem)
             else:
-                tarefas.add_task(processar_entrada, k, c["id"], ext, texto, audio)
+                tarefas.add_task(processar_entrada, k, c["id"], ext, texto, audio, imagem)
         return {"ok": True}
 
-    def processar_entrada(k: dict, conversa_id: int, ext: str, texto: str, audio: dict | None) -> None:
-        """Áudio do cliente vira texto (Whisper na GPU própria) ou é reconhecido como música antes da IA decidir."""
+    def processar_entrada(k: dict, conversa_id: int, ext: str, texto: str, audio: dict | None, imagem: dict | None = None) -> None:
+        """Áudio do cliente vira texto (Whisper na GPU própria) ou é reconhecido como música antes da IA decidir.
+        Persona: a foto que o fã manda fica guardada para a IA poder fazer uma foto dos dois juntos."""
+        if imagem:
+            try:
+                dados = gw.midia(cfg.conta_base + int(k["usuario"]), k["id"], imagem["url"])
+                im = ImageOps.exif_transpose(Image.open(io.BytesIO(dados))).convert("RGB")
+                im.thumbnail((1280, 1280))
+                destino = foto_do_fa(k["marca"], conversa_id)
+                destino.parent.mkdir(parents=True, exist_ok=True)
+                im.save(destino, "JPEG", quality=88)
+                legenda = "" if texto.startswith("[anexo") else texto
+                texto = ("[o fã mandou uma foto dele] " + legenda).strip()
+                db.exec("UPDATE mensagens SET texto=? WHERE conversa=? AND externo=?", (texto[:4000], conversa_id, ext))
+            except Exception as e:  # noqa: BLE001
+                log.warning("não consegui baixar a foto do fã na conversa %s: %s", conversa_id, e)
         if audio and vz.ligada:
             try:
                 dados = gw.midia(cfg.conta_base + int(k["usuario"]), k["id"], audio["url"])

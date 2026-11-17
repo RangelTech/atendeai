@@ -22,8 +22,22 @@ from tests.test_atendeai import GatewayFalso, assinar  # noqa: E402
 FONE = "5562988880000@s.whatsapp.net"
 
 
+def _jpg(cor="red"):
+    b = io.BytesIO(); Image.new("RGB", (40, 40), cor).save(b, "JPEG"); return b.getvalue()
+
+
+class GatewayFoto(GatewayFalso):
+    def handler(self, req):
+        if req.url.path.endswith("/media") and str(req.url.params.get("mxc", "")).startswith("mxc://img"):
+            self.midias.append(dict(req.url.params))
+            return httpx.Response(200, content=_jpg("blue"), headers={"content-type": "image/jpeg"})
+        return super().handler(req)
+
+
 def llm_fael(msgs):
     ultimo = msgs[-1]["content"]
+    if "nós dois" in ultimo:
+        return "Bora! [FOTO: eu e você montando no mesmo cavalo, rindo]"
     if "foto" in ultimo:
         return "Toma uma minha agora! [FOTO: eu no curral ao pôr do sol, chapéu preto]"
     return "Opa, tudo certo por aqui, e com você?"
@@ -31,7 +45,7 @@ def llm_fael(msgs):
 
 @pytest.fixture
 def fael(tmp_path):
-    gf = GatewayFalso()
+    gf = GatewayFoto()
     cfg = Config(dados=str(tmp_path), segredo_sessao="s", dev=True, canais_token="tok", cakto_segredo="ck",
                  planos_por_produto={"p-fa": "fael:fa", "p-vip": "fael:vip"}, checkouts={"fael:fa": "https://pay.cakto.com.br/fa"})
     gw = Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler))
@@ -131,3 +145,27 @@ def test_numeros_iguais_com_e_sem_9_e_55():
 def test_persona_tira_marcas_e_detecta_foto_e_voz():
     r = pers.conversar("manda áudio", [], "Fael", "", lambda m: "[VOZ] Opa, trem bão! [FOTO: selfie no rodeio]")
     assert r == {"texto": "Opa, trem bão!", "voz": True, "foto": "selfie no rodeio"}
+
+
+def test_foto_do_fa_entra_na_foto_dos_dois(fael, monkeypatch):
+    c, gf, app, cid, seg = fael
+    c.post("/api/persona/fotos", content=_jpg(), headers={"content-type": "image/jpeg"})
+    c.post("/api/persona/fas", json={"telefone": "62988880000", "plano": "vip", "dias": 30})
+    pedidos = []
+    real = httpx.post
+
+    def falso(url, **kw):
+        if url.endswith("/images/generations"):
+            pedidos.append(kw["json"])
+            import base64
+            return httpx.Response(200, json={"data": [{"b64_json": base64.b64encode(_jpg()).decode()}]}, request=httpx.Request("POST", url))
+        return real(url, **kw)
+    monkeypatch.setattr(httpx, "post", falso)
+    corpo = json.dumps({"event_id": "i1", "type": "message.created", "conversation": {"external_id": FONE, "contact": {"name": "Fã"}},
+                        "message": {"external_id": "mi1", "direction": "incoming", "text": "",
+                                    "attachments": [{"kind": "image", "mime": "image/jpeg", "name": "eu.jpg", "url": "mxc://img/1"}]}}).encode()
+    assert c.post(f"/hooks/canal/{cid}", content=corpo, headers=assinar(seg, corpo)).status_code == 200
+    db = app.state.db
+    assert db.um("SELECT texto FROM mensagens WHERE externo='mi1'")["texto"].startswith("[o fã mandou uma foto dele]")
+    msg(c, cid, seg, "i2", "faz uma foto de nós dois")
+    assert pedidos and "LAST reference photo shows a fan" in pedidos[-1]["prompt"] and len(pedidos[-1]["images"]) == 2

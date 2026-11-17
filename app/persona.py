@@ -30,7 +30,9 @@ Regras fixas:
 e escreva como fala (frases curtas, sem emoji, sem lista).
 FOTO: quando o fã pedir uma foto sua, ou quando mandar uma foto deixar a conversa mais legal, acrescente no fim UMA marca
 [FOTO: descrição curta da cena em que você aparece, ex.: "eu no curral ao pôr do sol, sorrindo, chapéu preto"]. No máximo uma foto por resposta.
-Não descreva a foto no texto; a marca já basta."""
+Não descreva a foto no texto; a marca já basta.
+FOTO JUNTOS: se o fã já mandou uma foto dele ("[o fã mandou uma foto dele]") e pedir foto de vocês dois, a descrição começa com
+"eu e você" e conta a cena (ex.: [FOTO: eu e você laçando um boi de brincadeira no curral, rindo]). Brincadeira saudável, sem nada ofensivo."""
 
 BOAS_VINDAS = ("Opa! Aqui é a IA oficial do {nome}, com o jeito e a voz dele. Pode mandar texto ou áudio que eu respondo, "
                "e se pedir eu te mando foto também. Você tem {gratis} mensagens de teste.")
@@ -84,7 +86,16 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
     return {"texto": r[:1500], "voz": voz, "foto": foto}
 
 
-def prompt_foto(nome: str, cena: str) -> str:
+JUNTOS = re.compile(r"\b(voc[eê]|vc|n[oó]s|nos dois|juntos|com o f[aã])\b", re.I)
+
+
+def prompt_foto(nome: str, cena: str, com_fa: bool = False) -> str:
+    if com_fa:
+        return (f"The reference photos show two different people. All photos except the LAST one show {nome} (black cowboy hat, beard, long dark hair): "
+                f"keep his exact face and look. The LAST reference photo shows a fan: keep the fan's exact face, hair and features too. "
+                f"Put BOTH of them together in the same photo, both clearly visible and recognizable. Scene: {cena}. "
+                "Fun, friendly, natural smartphone photo as if taken together and sent on WhatsApp, vertical framing, good light. "
+                "Photorealistic. No text, no watermark, fully clothed, family friendly.")
     return (f"Use the man in the reference photos ({nome}): keep his exact face, beard, hair and signature look, same person, photorealistic. "
             f"Scene: {cena}. Natural smartphone photo, as if he took it and sent it on WhatsApp, vertical framing, good light. "
             "No text, no watermark, fully clothed, family friendly.")
