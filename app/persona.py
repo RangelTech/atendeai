@@ -82,6 +82,8 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
         msgs.append({"role": "user" if m["direcao"] == "entrada" else "assistant", "content": conteudo[:1500]})
     if not historico or historico[-1]["texto"] != texto:
         msgs.append({"role": "user", "content": texto[:1500]})
+    if not texto.startswith("[o fã mandou uma foto dele]") and DISSE_QUE_MANDOU.search(texto or ""):
+        msgs.append({"role": "system", "content": "ATENÇÃO: o fã fala de uma foto, mas NENHUMA foto chegou. Diga numa frase curta que a foto não chegou e peça pra mandar de novo. Não descreva nem elogie foto nenhuma."})
     if veio_audio:
         msgs.append({"role": "system", "content": "O fã mandou áudio: responda em áudio ([VOZ])."})
     r = _MARCA_AUDIO.sub("", html.unescape(llm(msgs) or "")).strip()
@@ -97,6 +99,7 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
     return {"texto": r[:1500], "voz": voz, "foto": foto}
 
 
+DISSE_QUE_MANDOU = re.compile(r"(sou eu|essa (a[ií] )?(sou|é) eu|segue( a)? foto|mandei( a)? foto|olha (a )?foto|aqui (a|minha) foto|foto minha)", re.I)
 JUNTOS = re.compile(r"\b(voc[eê]|vc|n[oó]s|nos dois|juntos|com o f[aã])\b", re.I)
 
 

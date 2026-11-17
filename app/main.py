@@ -429,7 +429,11 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if d["foto"]:
             try:
                 fa_foto = foto_do_fa(marca, conversa_id)
-                juntos = fa_foto.exists() and time.time() - fa_foto.stat().st_mtime < 7 * 86400 and bool(pers.JUNTOS.search(d["foto"]))
+                tem_fa = fa_foto.exists() and time.time() - fa_foto.stat().st_mtime < 7 * 86400
+                if pers.JUNTOS.search(d["foto"]) and not tem_fa:  # foto dos dois sem a foto do fã: pede a foto em vez de inventar alguém
+                    enviar_fa(c, conversa_id, "Manda uma foto sua aqui primeiro que eu monto nós dois juntos 🤠", None, "[pediu a foto do fã]")
+                    return
+                juntos = tem_fa and bool(pers.JUNTOS.search(d["foto"]))
                 img = gerar_foto(marca, d["foto"], fa_foto if juntos else None)
                 mime = "image/jpeg" if img[:2] == b"\xff\xd8" else "image/png"
                 anexo = {"kind": "image", "mime": mime, "name": "foto.jpg" if mime == "image/jpeg" else "foto.png",
