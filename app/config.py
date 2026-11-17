@@ -34,6 +34,8 @@ class Config:
     dev: bool = False
     voz_base: str = ""        # servidor de voz (rt-voz) pela rede interna; vazio = sem voz
     voz_token: str = ""
+    imagem_base: str = ""     # llm-access (GPT de imagem) para as fotos da persona; vazio = usa llm_base
+    imagem_key: str = ""
 
 
 def carregar() -> Config:
@@ -62,6 +64,8 @@ def carregar() -> Config:
         demo_senha=e("ATENDEAI_DEMO_SENHA", ""),
         voz_base=e("ATENDEAI_VOZ_BASE", "").rstrip("/"),
         voz_token=e("ATENDEAI_VOZ_TOKEN", ""),
+        imagem_base=e("ATENDEAI_IMAGEM_BASE", "").rstrip("/"),
+        imagem_key=e("ATENDEAI_IMAGEM_KEY", ""),
         lancamento_ate=e("ATENDEAI_LANCAMENTO_ATE", "2026-12-15"),
         dev=e("ATENDEAI_DEV", "") == "1",
     )

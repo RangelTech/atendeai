@@ -352,7 +352,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         refs = ["data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode() for f in fotos_ref(marca)[:3]]
         if not refs:
             raise RuntimeError("sem fotos de referência")
-        r = httpx.post(cfg.llm_base + "/images/generations", headers={"Authorization": f"Bearer {cfg.llm_key}"}, timeout=420,
+        r = httpx.post((cfg.imagem_base or cfg.llm_base) + "/images/generations", headers={"Authorization": f"Bearer {cfg.imagem_key or cfg.llm_key}"}, timeout=420,
                        json={"prompt": pers.prompt_foto(MARCAS[marca]["pessoa"], cena), "size": "1024x1536", "images": refs})
         r.raise_for_status()
         d = (r.json().get("data") or [{}])[0]
