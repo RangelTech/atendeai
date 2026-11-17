@@ -18,7 +18,22 @@ MARCAS = {
              "hosts": ["atende-face.rangeltech.net"],
              "conecta": "Entre com o e-mail e a senha do Facebook. Se pedir código, ele chega no seu celular.",
              "atende": "conversas do Messenger"},
+    # persona: o fã paga para conversar no WhatsApp com a IA do influenciador (app/persona.py)
+    "fael": {"nome": "Fala Fael", "rede": "WhatsApp", "provider": "whatsapp", "cor": "#e2a33b", "tipo": "persona", "pessoa": "Fael",
+             "instagram": "https://www.instagram.com/faelgomeess/", "arroba": "@faelgomeess",
+             "hosts": ["fala-fael.rangeltech.net"],
+             "conecta": "Leia o QR com o WhatsApp do número do Fael (Aparelhos conectados).",
+             "atende": "conversas com os fãs no WhatsApp"},
 }
+
+# Planos do FÃ (persona): pagos pelo fã, liberados pelo número do WhatsApp.
+PLANOS_FA = {
+    "fa": {"nome": "Fã", "preco": 29.90, "msgs_mes": 300, "dias": 30,
+           "itens": ["300 mensagens por mês", "Áudios na voz do Fael", "Fotos exclusivas", "Responde na hora, 24 horas"]},
+    "vip": {"nome": "Fã VIP", "preco": 79.90, "msgs_mes": 1500, "dias": 30,
+            "itens": ["1.500 mensagens por mês", "Mais áudios e fotos", "Prioridade nas respostas", "Tudo do plano Fã"]},
+}
+TESTE_GRATIS = 5  # mensagens de teste para todo número novo
 
 # Planos por marca: contas conectadas e mensagens respondidas pela IA por mês.
 PLANOS = {
@@ -42,6 +57,13 @@ def por_host(host: str) -> str:
     return "whats"
 
 
+def persona(k: str) -> bool:
+    return MARCAS.get(k, {}).get("tipo") == "persona"
+
+
 def publica(k: str) -> dict:
     m = MARCAS[k]
-    return {"codigo": k, "nome": m["nome"], "rede": m["rede"], "cor": m["cor"], "conecta": m["conecta"], "atende": m["atende"]}
+    out = {"codigo": k, "nome": m["nome"], "rede": m["rede"], "cor": m["cor"], "conecta": m["conecta"], "atende": m["atende"], "tipo": m.get("tipo", "negocio")}
+    if persona(k):
+        out.update(pessoa=m["pessoa"], instagram=m["instagram"], arroba=m["arroba"])
+    return out

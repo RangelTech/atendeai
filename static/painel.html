@@ -15,6 +15,7 @@
     <button role="tab" data-aba="conversas" aria-selected="true">Conversas <span class="badge" id="b-nao-lidas" hidden></span></button>
     <button role="tab" data-aba="regras">Skills</button>
     <button role="tab" data-aba="voz" id="aba-voz" hidden>Minha voz</button>
+    <button role="tab" data-aba="fael" id="aba-fael" hidden>Fãs e fotos</button>
     <button role="tab" data-aba="contas">Conta conectada</button>
     <button role="tab" data-aba="plano">Plano</button>
   </nav>
@@ -122,6 +123,39 @@
       <div id="lista-contas"><p class="vazio">Carregando…</p></div>
     </div>
   </section>
+
+  <!-- persona (Fala Fael): admin -->
+  <section data-painel="fael" hidden>
+    <div class="cartao">
+      <div class="cab-cartao"><h3>WhatsApp e teste grátis</h3><span class="dim" id="pf-resumo"></span></div>
+      <p class="dim">O número abaixo aparece no botão "Testar grátis" da página de vendas. Conecte este mesmo número na aba Conta conectada.</p>
+      <div class="pf-linha">
+        <div><label for="pf-numero">Número do WhatsApp (com DDD)</label><input id="pf-numero" placeholder="62 99999-0000"></div>
+        <div><label for="pf-gratis">Mensagens grátis por número</label><input id="pf-gratis" type="number" min="0" max="50"></div>
+        <button class="btn btn-pri" id="pf-salvar">Salvar</button>
+      </div>
+      <p class="msg" id="pf-msg"></p>
+    </div>
+    <div class="cartao" style="margin-top:16px">
+      <div class="cab-cartao"><h3>Fotos de referência</h3><label class="btn btn-sec sm" style="cursor:pointer">Adicionar foto<input type="file" id="pf-foto" accept="image/*" multiple hidden></label></div>
+      <p class="dim">Até 6 fotos nítidas do rosto e do corpo. A IA usa estas fotos para criar as fotos que manda aos fãs.</p>
+      <div id="pf-fotos" style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px"></div>
+      <div class="pf-linha"><div><label for="pf-cena">Testar uma foto (descreva a cena)</label><input id="pf-cena" placeholder="selfie no rodeio ao pôr do sol"></div><button class="btn btn-sec" id="pf-testar">Gerar foto de teste</button></div>
+      <div id="pf-teste" style="margin-top:12px"></div>
+    </div>
+    <div class="cartao" style="margin-top:16px">
+      <div class="cab-cartao"><h3>Fãs</h3><span class="dim" id="pf-ativos"></span></div>
+      <div class="pf-linha">
+        <div><label for="pf-fone">Liberar um número (cortesia)</label><input id="pf-fone" placeholder="62 98888-0000"></div>
+        <div><label for="pf-plano">Plano</label><select id="pf-plano"><option value="fa">Fã</option><option value="vip">Fã VIP</option></select></div>
+        <div><label for="pf-dias">Dias</label><input id="pf-dias" type="number" value="30" min="0" max="400"></div>
+        <button class="btn btn-pri" id="pf-liberar">Liberar</button>
+      </div>
+      <div id="pf-fas"><p class="vazio">Carregando…</p></div>
+    </div>
+  </section>
+  <style>.pf-linha{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin-top:12px}.pf-linha>div{flex:1;min-width:160px}
+  .pf-tab{width:100%;border-collapse:collapse;margin-top:8px}.pf-tab th,.pf-tab td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--bd)}</style>
 
   <!-- plano -->
   <section data-painel="plano" hidden>

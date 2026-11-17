@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{NOME}}: converse com o {{PESSOA}} no WhatsApp</title>
+<meta name="description" content="A IA oficial do {{PESSOA}} no seu WhatsApp: responde na hora, manda áudio na voz dele, foto e aquele jeitão. A qualquer hora.">
+<meta property="og:title" content="{{NOME}}: o {{PESSOA}} no seu WhatsApp">
+<meta property="og:description" content="Mande mensagem e receba áudio, foto e texto da IA oficial do {{PESSOA}}.">
+<meta property="og:image" content="/s/img/fala_heroi.webp">
+<link rel="stylesheet" href="/s/estilo.css">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rye&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ac:{{COR}};--ouro:#e2a33b;--ouro2:#f5c76b;--bg:#0b0806;--card:#16110c;--card2:#1e1710;--bd:rgba(255,220,170,.12);--tx:#f7efe3;--mut:#bfae96;--verde:#25d366}
+*{box-sizing:border-box}html,body{overflow-x:clip}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:Inter,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+.wrap{width:min(1180px,100% - 32px);margin:0 auto}
+.west{font-family:Rye,Georgia,serif;font-weight:400;letter-spacing:.01em}
+/* topo */
+.topo{position:fixed;inset:0 0 auto;z-index:20;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);background:linear-gradient(180deg,rgba(11,8,6,.85),rgba(11,8,6,.4));border-bottom:1px solid var(--bd)}
+.topo .wrap{display:flex;align-items:center;justify-content:space-between;height:68px}
+.logo{display:flex;align-items:center;gap:10px;text-decoration:none;font-size:22px}
+.logo i{width:34px;height:34px;border-radius:50%;background:url(/s/img/fala_avatar.webp) center/cover;border:2px solid var(--ouro);display:block}
+.topo nav{display:flex;gap:24px;align-items:center}.topo nav a{text-decoration:none;color:var(--mut);font-size:15px;transition:color .2s}.topo nav a:hover{color:var(--tx)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;border-radius:999px;padding:14px 24px;font-weight:700;font-size:16px;text-decoration:none;border:1px solid transparent;cursor:pointer;transition:transform .25s,box-shadow .25s,background .25s}
+.btn:hover{transform:translateY(-2px)}
+.btn-ouro{background:linear-gradient(135deg,var(--ouro2),var(--ouro));color:#1b1206;box-shadow:0 10px 30px rgba(226,163,59,.35)}
+.btn-ouro:hover{box-shadow:0 14px 40px rgba(226,163,59,.5)}
+.btn-zap{background:var(--verde);color:#06240f;box-shadow:0 10px 30px rgba(37,211,102,.3)}
+.btn-vidro{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.22);color:#fff;backdrop-filter:blur(10px)}
+.btn-sec{background:transparent;border-color:var(--bd);color:var(--tx);padding:9px 16px;font-size:14px}
+/* herói */
+.heroi{position:relative;min-height:100vh;display:grid;align-items:center;isolation:isolate;overflow:hidden;padding:120px 0 80px}
+.heroi .fundo{position:absolute;inset:0;z-index:-2;background:url(/s/img/fala_heroi.webp) 70% center/cover;animation:zoom 20s ease-out both}
+.heroi:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(11,8,6,.96) 0%,rgba(11,8,6,.78) 36%,rgba(11,8,6,.15) 66%,rgba(11,8,6,0) 85%),linear-gradient(0deg,var(--bg) 0%,transparent 28%)}
+@keyframes zoom{from{transform:scale(1.08)}to{transform:scale(1)}}
+.selo{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:rgba(226,163,59,.12);border:1px solid rgba(226,163,59,.35);color:var(--ouro2);font-size:13px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.selo b{width:8px;height:8px;border-radius:50%;background:var(--verde);box-shadow:0 0 0 4px rgba(37,211,102,.2);animation:pulsa 1.8s infinite}
+@keyframes pulsa{50%{box-shadow:0 0 0 8px rgba(37,211,102,0)}}
+.heroi h1{font-size:clamp(46px,7vw,96px);line-height:.98;margin:22px 0 20px;max-width:720px}
+.heroi h1 em{font-style:normal;color:var(--ouro2)}
+.heroi p.lead{font-size:clamp(18px,2vw,21px);line-height:1.55;color:#e6d8c4;max-width:560px;margin:0 0 32px}
+.acoes{display:flex;gap:12px;flex-wrap:wrap}
+.chips{display:flex;gap:18px;flex-wrap:wrap;margin-top:28px;color:var(--mut);font-size:14px}.chips span{display:flex;align-items:center;gap:8px}
+.chips svg{color:var(--ouro2)}
+/* conversa */
+.bloco{padding:110px 0}
+.etq{font-size:13px;letter-spacing:.18em;text-transform:uppercase;font-weight:800;color:var(--ouro)}
+h2{font-size:clamp(34px,4.6vw,58px);line-height:1.05;margin:14px 0 18px;letter-spacing:-.01em}
+.sub{color:var(--mut);font-size:18px;line-height:1.6;max-width:620px}
+.split{display:grid;grid-template-columns:1.05fr .95fr;gap:64px;align-items:center}
+.cel{width:min(380px,100%);margin:0 auto;border-radius:44px;padding:12px;background:linear-gradient(160deg,#2a2118,#0d0a07);box-shadow:0 40px 100px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.08)}
+.tela{border-radius:34px;overflow:hidden;background:#0b141a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Cpath d='M0 20h40M20 0v40' stroke='%23ffffff' stroke-opacity='.025'/%3E%3C/svg%3E")}
+.zcab{display:flex;align-items:center;gap:10px;padding:14px 16px;background:#1f2c33}
+.zcab i{width:38px;height:38px;border-radius:50%;background:url(/s/img/fala_avatar.webp) center/cover}
+.zcab b{display:block;font-size:15px}.zcab small{color:#8fb39d;font-size:12px}
+.zmsgs{padding:16px 12px 20px;display:flex;flex-direction:column;gap:8px;min-height:520px}
+.z{max-width:82%;padding:8px 11px 6px;border-radius:12px;font-size:14px;line-height:1.4;position:relative;opacity:0;transform:translateY(8px);transition:.5s}
+.z.vis{opacity:1;transform:none}
+.z small{display:block;text-align:right;font-size:10.5px;color:rgba(255,255,255,.55);margin-top:2px}
+.eu{align-self:flex-end;background:#005c4b;border-top-right-radius:4px}
+.ele{align-self:flex-start;background:#202c33;border-top-left-radius:4px}
+.audio{display:flex;align-items:center;gap:10px;min-width:230px}
+.audio .play{width:34px;height:34px;border-radius:50%;background:var(--verde);display:grid;place-items:center;flex:none;color:#06240f}
+.onda{flex:1;height:26px;display:flex;align-items:center;gap:2px}.onda i{flex:1;background:#8696a0;border-radius:2px;animation:onda 1.2s ease-in-out infinite}
+@keyframes onda{50%{transform:scaleY(.45)}}
+.audio .mini{width:30px;height:30px;border-radius:50%;background:url(/s/img/fala_avatar.webp) center/cover;flex:none}
+.zfoto{padding:4px}.zfoto img{display:block;width:210px;height:280px;object-fit:cover;border-radius:9px}
+/* passos */
+.passos{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+.passo{padding:32px;border-radius:24px;background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--bd)}
+.passo .n{font-family:Rye,serif;font-size:44px;color:var(--ouro);line-height:1}
+.passo h3{font-size:21px;margin:16px 0 8px}.passo p{color:var(--mut);margin:0;line-height:1.55}
+/* o que ele manda */
+.manda{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:48px}
+.card{position:relative;border-radius:28px;overflow:hidden;min-height:520px;display:flex;align-items:flex-end;isolation:isolate;border:1px solid var(--bd)}
+.card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;transition:transform 1.2s ease}
+.card:hover img{transform:scale(1.05)}
+.card:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(11,8,6,.95) 5%,rgba(11,8,6,.2) 55%,transparent)}
+.card div{padding:28px}.card h3{font-size:26px;margin:8px 0}.card p{color:#e6d8c4;margin:0;line-height:1.5}
+.card.txt{background:radial-gradient(120% 80% at 80% 0%,rgba(226,163,59,.25),transparent 60%),var(--card);align-items:stretch}
+.card.txt div{display:flex;flex-direction:column;justify-content:flex-end}
+.bal{background:#202c33;border-radius:14px;padding:12px 14px;margin:6px 0;font-size:15px;max-width:90%}
+.bal.eu{background:#005c4b;align-self:flex-end}
+/* planos */
+.planos{display:grid;grid-template-columns:repeat(2,minmax(0,380px));gap:24px;justify-content:center;margin-top:48px}
+.plano{padding:36px;border-radius:28px;background:linear-gradient(160deg,var(--card2),var(--card));border:1px solid var(--bd);position:relative}
+.plano.top{border-color:rgba(226,163,59,.6);box-shadow:0 30px 80px rgba(226,163,59,.12)}
+.plano .tag{position:absolute;top:-13px;left:36px;background:var(--ouro);color:#1b1206;font-size:12px;font-weight:800;padding:5px 12px;border-radius:999px;letter-spacing:.06em;text-transform:uppercase}
+.plano h3{font-size:24px;margin:0}.preco{font-size:48px;font-weight:800;margin:14px 0 4px}.preco small{font-size:16px;color:var(--mut);font-weight:500}
+.plano ul{list-style:none;padding:0;margin:20px 0 28px;display:grid;gap:12px;color:#e6d8c4}
+.plano li{display:flex;gap:10px}.plano li:before{content:"";width:18px;height:18px;flex:none;border-radius:50%;background:rgba(37,211,102,.18) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3 3 7-7' stroke='%2325d366' stroke-width='2.4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") center/14px no-repeat;margin-top:2px}
+.plano .btn{width:100%}
+.gratis{text-align:center;margin-top:28px;color:var(--mut)}
+/* dúvidas */
+.faq{max-width:820px;margin:40px auto 0}
+.faq details{border-bottom:1px solid var(--bd);padding:22px 4px}
+.faq summary{cursor:pointer;font-size:18px;font-weight:700;list-style:none;display:flex;justify-content:space-between;gap:16px}
+.faq summary:after{content:"+";color:var(--ouro);font-size:24px;line-height:1;transition:transform .25s}
+.faq details[open] summary:after{transform:rotate(45deg)}
+.faq p{color:var(--mut);line-height:1.6;margin:12px 0 0}
+/* faixa final */
+.final{position:relative;padding:140px 0;text-align:center;isolation:isolate;overflow:hidden}
+.final img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2;object-position:center 30%}
+.final:after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(0deg,var(--bg),rgba(11,8,6,.7) 40%,rgba(11,8,6,.85))}
+.final h2{font-size:clamp(40px,6vw,80px)}
+.colab{padding:56px 0;border-top:1px solid var(--bd)}
+.colab .c{display:flex;align-items:center;gap:24px;flex-wrap:wrap;justify-content:space-between}
+.colab .eu2{display:flex;align-items:center;gap:16px}.colab img{width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--ouro)}
+.ig{background:linear-gradient(45deg,#f9a825,#e1306c 45%,#833ab4);color:#fff}
+.rodape{padding:28px 0 100px;color:var(--mut);font-size:13px;display:flex;gap:18px;flex-wrap:wrap;justify-content:space-between}
+.fixo-cel{display:none}
+.rev{opacity:0;transform:translateY(24px);transition:opacity .8s ease,transform .8s ease}.rev.vis{opacity:1;transform:none}
+@media (max-width:900px){
+  .topo nav a{display:none}.split{grid-template-columns:1fr;gap:48px}.passos,.manda{grid-template-columns:1fr}.planos{grid-template-columns:1fr}
+  .heroi .fundo{background-position:75% center}.heroi:after{background:linear-gradient(0deg,var(--bg) 8%,rgba(11,8,6,.82) 50%,rgba(11,8,6,.35))}
+  .heroi{align-items:end}.card{min-height:440px}
+  .fixo-cel{display:flex;position:fixed;left:16px;right:16px;bottom:16px;z-index:30}.fixo-cel .btn{flex:1}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}.rev,.z{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<header class="topo"><div class="wrap">
+  <a class="logo west" href="/"><i></i>{{NOME}}</a>
+  <nav><a href="#como">Como funciona</a><a href="#manda">O que ele manda</a><a href="#planos">Planos</a><a href="#duvidas">Dúvidas</a><button class="btn btn-sec" data-entrar>Entrar</button></nav>
+</div></header>
+
+<section class="heroi"><div class="fundo" role="img" aria-label="{{PESSOA}} mostrando o celular com uma conversa no WhatsApp"></div>
+  <div class="wrap rev">
+    <span class="selo"><b></b>IA oficial do {{PESSOA}} · online agora</span>
+    <h1 class="west">O {{PESSOA}} no seu <em>WhatsApp</em>.</h1>
+    <p class="lead">Mande mensagem e ele responde na hora: <b>áudio na voz dele</b>, <b>foto</b> e aquele jeitão de sempre. De dia, de madrugada, quando der vontade.</p>
+    <div class="acoes"><a class="btn btn-ouro" href="#planos">Quero falar com o {{PESSOA}}</a><a class="btn btn-vidro" data-zap href="#planos">Testar grátis no WhatsApp</a></div>
+    <div class="chips">
+      <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v4"/></svg>Áudio na voz dele</span>
+      <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="12" cy="12" r="3.5"/></svg>Fotos exclusivas</span>
+      <span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>24 horas</span>
+    </div>
+  </div>
+</section>
+
+<section class="bloco" id="veja"><div class="wrap split">
+  <div class="rev">
+    <span class="etq">Parece ele. Fala como ele.</span>
+    <h2 class="west">Pede um áudio.<br>Ele manda.</h2>
+    <p class="sub">A IA foi treinada com o jeito de falar, as histórias e a voz do {{PESSOA}}. Pede um áudio para a sua mãe, uma foto do rodeio, um conselho, uma resenha: ele responde do jeito dele, na hora.</p>
+    <p class="sub" style="margin-top:14px;font-size:15px">Sempre transparente: é a IA oficial do {{PESSOA}}, e ela fala isso se você perguntar.</p>
+  </div>
+  <div class="cel rev"><div class="tela">
+    <div class="zcab"><i></i><div><b>{{PESSOA}}</b><small>online</small></div></div>
+    <div class="zmsgs" id="conversa">
+      <div class="z eu">Fael, manda um áudio pra minha mãe? Ela é muito sua fã 😍<small>21:14</small></div>
+      <div class="z ele"><div class="audio"><span class="mini"></span><span class="play"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg></span><span class="onda" aria-hidden="true"></span></div><small>0:14 · 21:14</small></div>
+      <div class="z ele">Manda pra ela aí! Fala que o Fael mandou um beijo 🤠<small>21:14</small></div>
+      <div class="z eu">Manda uma foto do rodeio de hoje!<small>21:15</small></div>
+      <div class="z ele zfoto"><img src="/s/img/fala_selfie.webp" alt="Selfie do {{PESSOA}} no rodeio" loading="lazy"><small>21:15</small></div>
+    </div>
+  </div></div>
+</div></section>
+
+<section class="bloco" id="como" style="padding-top:40px"><div class="wrap">
+  <div class="rev" style="text-align:center"><span class="etq">Como funciona</span><h2 class="west">Três passos e você tá falando com ele</h2></div>
+  <div class="passos">
+    <div class="passo rev"><div class="n">1</div><h3>Escolha o plano</h3><p>Pague no Pix ou no cartão e informe o <b>seu número do WhatsApp</b>. É ele que libera a conversa.</p></div>
+    <div class="passo rev"><div class="n">2</div><h3>Abra o WhatsApp</h3><p>Toque em “Falar com o {{PESSOA}}” e mande um oi. Pode ser texto ou áudio.</p></div>
+    <div class="passo rev"><div class="n">3</div><h3>Converse à vontade</h3><p>Ele responde na hora, com áudio, foto e texto. De dia ou de madrugada.</p></div>
+  </div>
+</div></section>
+
+<section class="bloco" id="manda" style="padding-top:40px"><div class="wrap">
+  <div class="rev"><span class="etq">O que ele manda</span><h2 class="west">Áudio, foto e resenha boa</h2></div>
+  <div class="manda">
+    <div class="card rev"><img src="/s/img/fala_audio.webp" alt="{{PESSOA}} gravando um áudio" loading="lazy"><div><span class="etq">Áudio</span><h3>Na voz dele</h3><p>Manda áudio que ele responde em áudio. Recado de aniversário, bom dia, aquele “boa sorte na prova”.</p></div></div>
+    <div class="card rev"><img src="/s/img/fala_cavalo.webp" alt="Foto do {{PESSOA}} no curral" loading="lazy"><div><span class="etq">Foto</span><h3>Do dia a dia</h3><p>Pede uma foto e ele manda: no curral, no rodeio, na estrada. Fotos feitas para você.</p></div></div>
+    <div class="card txt rev"><div><span class="etq">Texto</span><h3>Resenha de verdade</h3>
+      <div class="bal eu">Fael, tô nervoso, primeira montaria amanhã</div>
+      <div class="bal">Uai, nervoso é bom sô! Respira, segura firme e confia no treino. Depois me conta como foi 🤠</div>
+      <p style="margin-top:12px">Conselho, risada e aquele papo de amigo. Ele lembra do que vocês conversaram.</p></div></div>
+  </div>
+</div></section>
+
+<section class="bloco" id="planos"><div class="wrap">
+  <div class="rev" style="text-align:center"><span class="etq">Planos</span><h2 class="west">Escolha e vá direto pro WhatsApp</h2><p class="sub" style="margin:0 auto">Sem fidelidade. Cancele quando quiser. Garantia de 7 dias.</p></div>
+  <div class="planos" id="lista-planos"></div>
+  <p class="gratis" id="gratis"></p>
+</div></section>
+
+<section class="bloco" id="duvidas" style="padding-top:20px"><div class="wrap">
+  <div class="rev" style="text-align:center"><span class="etq">Dúvidas</span><h2 class="west">Perguntas frequentes</h2></div>
+  <div class="faq">
+    <details><summary>É o {{PESSOA}} de verdade?</summary><p>É a IA oficial do {{PESSOA}}: treinada com o jeito de falar, as histórias e a voz dele, com a autorização dele. Se você perguntar, ela mesma confirma que é a IA dele.</p></details>
+    <details><summary>Como a conversa é liberada?</summary><p>Pelo número do WhatsApp que você informar no pagamento. Pague com o mesmo número que vai usar para conversar.</p></details>
+    <details><summary>Ele manda áudio e foto mesmo?</summary><p>Sim. Áudios na voz dele e fotos feitas para você, além de texto. Tudo dentro do seu WhatsApp.</p></details>
+    <details><summary>Posso testar antes?</summary><p>Pode. Todo número novo ganha algumas mensagens grátis para conhecer.</p></details>
+    <details><summary>Posso cancelar?</summary><p>Quando quiser, sem multa. E se não gostar nos primeiros 7 dias, devolvemos o valor.</p></details>
+    <details><summary>Tem conteúdo adulto?</summary><p>Não. A conversa é para toda a família, sem conteúdo sexual, sem golpe e sem pedido de dados pessoais.</p></details>
+  </div>
+</div></section>
+
+<section class="final"><img src="/s/img/fala_heroi.webp" alt="" loading="lazy">
+  <div class="wrap rev"><h2 class="west">Bora prosear?</h2><p class="sub" style="margin:0 auto 28px">O {{PESSOA}} tá esperando a sua mensagem.</p>
+  <div class="acoes" style="justify-content:center"><a class="btn btn-ouro" href="#planos">Quero falar com o {{PESSOA}}</a><a class="btn btn-zap" data-zap href="#planos">Testar grátis</a></div></div>
+</section>
+
+<section class="colab"><div class="wrap c">
+  <div class="eu2"><img src="/s/img/fala_avatar.webp" alt="{{PESSOA}}"><div><div class="etq">Parceria</div><b style="font-size:22px">Colab Fael - Adriano Camargo</b></div></div>
+  <a class="btn ig" href="{{INSTAGRAM}}" target="_blank" rel="noopener"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor"/></svg>{{ARROBA}}</a>
+</div></section>
+<div class="wrap rodape"><span>{{NOME}} · IA oficial do {{PESSOA}}. Conversa com inteligência artificial.</span><a href="/termos">Termos e privacidade</a></div>
+<div class="fixo-cel"><a class="btn btn-ouro" href="#planos">Falar com o {{PESSOA}}</a></div>
+
+<div class="modal" id="m-entrar" hidden role="dialog" aria-modal="true" aria-labelledby="m-tit">
+  <div class="caixa"><button class="x" data-fechar aria-label="Fechar">×</button></div>
+</div>
+<script>window.MARCA = {{MARCA_JSON}}</script>
+<script src="/s/login.js" data-conta="/api/conta" data-destino="/painel"></script>
+<script>
+(() => {
+  const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
+  document.querySelectorAll('.onda').forEach((o) => { o.innerHTML = Array.from({ length: 28 }, (_, i) => `<i style="height:${30 + Math.round(Math.abs(Math.sin(i * 1.7)) * 70)}%;animation-delay:${(i % 7) * 0.12}s"></i>`).join('') })
+  const io = new IntersectionObserver((es) => es.forEach((e) => { if (e.isIntersecting) { e.target.classList.add('vis'); io.unobserve(e.target) } }), { threshold: .15 })
+  document.querySelectorAll('.rev').forEach((e) => io.observe(e))
+  const conversa = document.getElementById('conversa')
+  new IntersectionObserver((es, ob) => { if (!es[0].isIntersecting) return; ob.disconnect(); [...conversa.children].forEach((m, i) => setTimeout(() => m.classList.add('vis'), 400 + i * 900)) }, { threshold: .3 }).observe(conversa)
+  fetch('/api/publico/persona').then((r) => r.json()).then((p) => {
+    const brl = (v) => v.toFixed(2).replace('.', ',')
+    document.getElementById('lista-planos').innerHTML = p.planos.map((x, i) => `<div class="plano ${i === 0 ? 'top' : ''} rev vis">${i === 0 ? '<span class="tag">Mais escolhido</span>' : ''}
+      <h3>${esc(x.nome)}</h3><div class="preco">R$ ${brl(x.preco)}<small>/mês</small></div><ul>${x.itens.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+      ${x.checkout ? `<a class="btn ${i === 0 ? 'btn-ouro' : 'btn-vidro'}" href="${esc(x.checkout)}">Assinar ${esc(x.nome)}</a>` : `<a class="btn btn-vidro" ${p.whatsapp ? `href="${esc(p.whatsapp)}"` : 'aria-disabled="true"'}>Em breve · teste grátis</a>`}</div>`).join('')
+    if (p.whatsapp) {
+      document.querySelectorAll('[data-zap]').forEach((a) => { a.href = p.whatsapp; a.target = '_blank'; a.rel = 'noopener' })
+      document.getElementById('gratis').innerHTML = `Quer conhecer antes? <a href="${esc(p.whatsapp)}" target="_blank" rel="noopener" style="color:var(--verde);font-weight:700">Mande um oi no WhatsApp</a> e ganhe ${p.gratis} mensagens grátis.`
+    }
+  }).catch(() => {})
+})()
+</script>
+</body>
+</html>

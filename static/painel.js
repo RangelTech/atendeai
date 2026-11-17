@@ -20,7 +20,7 @@
     $$('[data-aba]').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.aba === nome)))
     $$('[data-painel]').forEach((p) => (p.hidden = p.dataset.painel !== nome))
     history.replaceState(null, '', '#' + nome)
-    ;({ conversas: carregarConversas, regras: carregarSkill, voz: carregarVoz, contas: carregarContas, plano: carregarPlano })[nome]?.()
+    ;({ conversas: carregarConversas, regras: carregarSkill, voz: carregarVoz, contas: carregarContas, plano: carregarPlano, fael: carregarPersona })[nome]?.()
   }
   $$('[data-aba]').forEach((b) => (b.onclick = () => abrirAba(b.dataset.aba)))
   $('#sair').onclick = async () => { await post('/api/sair'); location.href = '/' }
@@ -209,7 +209,7 @@
   }
 
   // ------------------------------------------------ minha voz (plano Voz, só WhatsApp)
-  if (['whats', 'insta'].includes(window.MARCA.codigo)) $('#aba-voz').hidden = false
+  if (['whats', 'insta', 'fael'].includes(window.MARCA.codigo)) $('#aba-voz').hidden = false
   let REC = null, PEDACOS = [], T0 = 0, TIMER = null
   const vozMsg = (t, tipo = '') => { $('#voz-msg').textContent = t; $('#voz-msg').className = 'msg ' + tipo }
   async function carregarVoz() {
@@ -379,6 +379,43 @@
     poll = setTimeout(async () => { try { abrirLogin(await api('/api/contas/' + v.id)) } catch {} }, Math.max(2, p.espera_s || 3) * 1000)
   }
 
+  // ------------------------------------------------ persona (Fala Fael): número, fotos de referência e fãs
+  const PERSONA = window.MARCA.tipo === 'persona'
+  if (PERSONA) { $('#aba-fael').hidden = false; const r = $('[data-aba=regras]'); if (r) r.textContent = 'Personalidade' }
+  const pfMsg = (t, tipo = '') => { $('#pf-msg').textContent = t; $('#pf-msg').className = 'msg ' + tipo }
+  async function carregarPersona() {
+    const p = await api('/api/persona')
+    $('#pf-numero').value = p.numero || ''
+    $('#pf-gratis').value = p.gratis
+    $('#pf-resumo').textContent = `${p.conversas} conversa(s)`
+    $('#pf-ativos').textContent = `${p.ativos} ativo(s)`
+    $('#pf-fotos').innerHTML = p.fotos.length ? p.fotos.map((f) => `<div style="position:relative"><img src="/api/persona/fotos/${esc(f)}" alt="" style="width:110px;height:140px;object-fit:cover;border-radius:12px;border:1px solid var(--bd)">
+      <button class="btn btn-sec sm" data-apagar-foto="${esc(f)}" style="position:absolute;top:6px;right:6px;padding:2px 8px" aria-label="Apagar foto">×</button></div>`).join('') : '<p class="vazio">Nenhuma foto ainda.</p>'
+    $$('[data-apagar-foto]').forEach((b) => (b.onclick = async () => { await api('/api/persona/fotos/' + b.dataset.apagarFoto, { method: 'DELETE' }); carregarPersona() }))
+    $('#pf-fas').innerHTML = p.fas.length ? `<table class="pf-tab"><thead><tr><th>Número</th><th>Plano</th><th>Até</th><th>Situação</th></tr></thead><tbody>${p.fas.map((f) => `<tr>
+      <td>${esc(f.telefone)}${f.nome ? ` <span class="dim">${esc(f.nome)}</span>` : ''}</td><td>${f.plano === 'vip' ? 'Fã VIP' : 'Fã'}</td><td>${new Date(f.ativo_ate * 1000).toLocaleDateString('pt-BR')}</td><td>${f.ativo ? 'Ativo' : '<span class="dim">Vencido</span>'}</td></tr>`).join('')}</tbody></table>`
+      : '<p class="vazio">Ninguém assinou ainda. Quem paga aparece aqui sozinho.</p>'
+  }
+  if (PERSONA) {
+    $('#pf-salvar').onclick = async () => { try { await post('/api/persona/ajustes', { numero: $('#pf-numero').value, teste_gratis: Number($('#pf-gratis').value || 0) }); pfMsg('Salvo.', 'ok'); carregarPersona() } catch (err) { pfMsg(err.message, 'erro') } }
+    $('#pf-foto').onchange = async (ev) => {
+      for (const f of ev.target.files) {
+        const r = await fetch('/api/persona/fotos', { method: 'POST', headers: { 'Content-Type': f.type || 'image/jpeg' }, body: f })
+        if (!r.ok) pfMsg((await r.json().catch(() => ({}))).detail || 'Não consegui enviar a foto.', 'erro')
+      }
+      ev.target.value = ''; carregarPersona()
+    }
+    $('#pf-testar').onclick = async () => {
+      $('#pf-teste').innerHTML = '<p class="dim">Gerando a foto (leva cerca de 1 minuto)…</p>'
+      try {
+        const r = await fetch('/api/persona/foto_teste', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cena: $('#pf-cena').value }) })
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || 'A foto não saiu.')
+        $('#pf-teste').innerHTML = `<img src="${URL.createObjectURL(await r.blob())}" alt="Foto de teste" style="max-width:280px;border-radius:14px">`
+      } catch (err) { $('#pf-teste').innerHTML = `<p class="msg erro">${esc(err.message)}</p>` }
+    }
+    $('#pf-liberar').onclick = async () => { try { await post('/api/persona/fas', { telefone: $('#pf-fone').value, plano: $('#pf-plano').value, dias: Number($('#pf-dias').value || 0) }); $('#pf-fone').value = ''; carregarPersona() } catch (err) { pfMsg(err.message, 'erro') } }
+  }
+
   // ------------------------------------------------ plano
   async function carregarPlano() {
     await carregarConta()
@@ -391,6 +428,6 @@
   }
 
   carregarConta().catch(() => {})
-  abrirAba((location.hash || '#conversas').slice(1) in { conversas: 1, regras: 1, voz: 1, contas: 1, plano: 1 } ? location.hash.slice(1) || 'conversas' : 'conversas')
+  abrirAba((location.hash || '#conversas').slice(1) in { conversas: 1, regras: 1, voz: 1, contas: 1, plano: 1, fael: 1 } ? location.hash.slice(1) || 'conversas' : 'conversas')
   setInterval(() => { if (!$('[data-painel=conversas]').hidden && !document.hidden) carregarConversas() }, 8000)
 })()

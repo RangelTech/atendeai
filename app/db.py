@@ -78,6 +78,13 @@ CREATE TABLE IF NOT EXISTS mensagens (
 );
 CREATE INDEX IF NOT EXISTS msg_conversa ON mensagens(conversa, criado);
 CREATE TABLE IF NOT EXISTS eventos_canal (id TEXT PRIMARY KEY, recebido REAL NOT NULL);
+-- persona (Fala Fael): fãs pagantes por número e ajustes do admin
+CREATE TABLE IF NOT EXISTS fas (
+  marca TEXT NOT NULL, telefone TEXT NOT NULL, plano TEXT NOT NULL DEFAULT '', ativo_ate REAL NOT NULL DEFAULT 0,
+  email TEXT NOT NULL DEFAULT '', nome TEXT NOT NULL DEFAULT '', pedido TEXT NOT NULL DEFAULT '', criado REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (marca, telefone)
+);
+CREATE TABLE IF NOT EXISTS ajustes (chave TEXT PRIMARY KEY, valor TEXT NOT NULL);
 """
 
 

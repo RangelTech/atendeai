@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import base64
 import hashlib
+import io
 import re
 import hmac
 import json
@@ -13,17 +15,20 @@ import time
 from pathlib import Path
 
 import httpx
+from PIL import Image, ImageOps
 from starlette.concurrency import run_in_threadpool
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from app import atendente, auth, mailer, senha_rotas
+from app import persona as pers
 from app import voz as voz_mod
 from app.canais import CanalErro, Gateway, assinatura_ok
 from app.config import Config, carregar
 from app.db import Banco, agora
-from app.marcas import MARCAS, PLANOS, por_host, publica
+from app.marcas import MARCAS, PLANOS, PLANOS_FA, TESTE_GRATIS, por_host, publica
+from app.marcas import persona as eh_persona
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("atendeai")
@@ -207,7 +212,10 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     @app.get("/api/marca")
     def marca(request: Request):
         m = marca_de(request)
-        return {"marca": publica(m), "planos": planos_publicos(m), "outras": [publica(k) | {"url": "https://" + MARCAS[k]["hosts"][0]} for k in MARCAS if k != m]}
+        out = {"marca": publica(m), "planos": planos_publicos(m), "outras": [publica(k) | {"url": "https://" + MARCAS[k]["hosts"][0]} for k in MARCAS if k != m and not eh_persona(k)]}
+        if eh_persona(m):
+            out["persona"] = persona_publica(m)
+        return out
 
     @app.get("/api/conta")
     def conta(request: Request):
@@ -305,6 +313,232 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             erro_canal(e)
         return vista_conta(atualizar_de_view(k, view), view)
 
+    # ------------------------------------------------ persona (Fala Fael): fãs pagam e conversam no WhatsApp
+    PERSONA = Path(cfg.dados) / "persona"
+    PERSONA.mkdir(parents=True, exist_ok=True)
+
+    def ajuste(chave: str, padrao: str = "") -> str:
+        r = db.um("SELECT valor FROM ajustes WHERE chave=?", (chave,))
+        return r["valor"] if r else padrao
+
+    def gravar_ajuste(chave: str, valor: str) -> None:
+        db.exec("INSERT INTO ajustes(chave,valor) VALUES(?,?) ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor", (chave, valor))
+
+    def gratis(marca: str) -> int:
+        try:
+            return max(0, int(ajuste(f"{marca}:teste_gratis", str(TESTE_GRATIS))))
+        except ValueError:
+            return TESTE_GRATIS
+
+    def fotos_ref(marca: str) -> list[Path]:
+        d = PERSONA / marca
+        return sorted(d.glob("ref_*.jpg")) if d.exists() else []
+
+    def link_planos(marca: str) -> str:
+        return "https://" + MARCAS[marca]["hosts"][0] + "/#planos"
+
+    def persona_publica(marca: str) -> dict:
+        num = re.sub(r"\D", "", ajuste(f"{marca}:numero"))
+        return {"numero": num, "whatsapp": (f"https://wa.me/{num}?text=Oi%20" + MARCAS[marca]["pessoa"] + "!") if num else "",
+                "gratis": gratis(marca), "planos": [{"codigo": k, **v, "checkout": cfg.checkouts.get(f"{marca}:{k}") or ""} for k, v in PLANOS_FA.items()]}
+
+    def fa_de(marca: str, fone: str) -> dict | None:
+        for f in db.todos("SELECT * FROM fas WHERE marca=?", (marca,)):
+            if pers.mesmo_numero(f["telefone"], fone):
+                return f
+        return None
+
+    def gerar_foto(marca: str, cena: str) -> bytes:
+        refs = ["data:image/jpeg;base64," + base64.b64encode(f.read_bytes()).decode() for f in fotos_ref(marca)[:3]]
+        if not refs:
+            raise RuntimeError("sem fotos de referência")
+        r = httpx.post(cfg.llm_base + "/images/generations", headers={"Authorization": f"Bearer {cfg.llm_key}"}, timeout=420,
+                       json={"prompt": pers.prompt_foto(MARCAS[marca]["pessoa"], cena), "size": "1024x1536", "images": refs})
+        r.raise_for_status()
+        d = (r.json().get("data") or [{}])[0]
+        if d.get("b64_json"):
+            return base64.b64decode(d["b64_json"])
+        if d.get("url"):
+            return httpx.get(d["url"], timeout=60).content
+        raise RuntimeError("o gerador não devolveu imagem")
+
+    def enviar_fa(c: dict, conversa_id: int, texto: str, anexos: list | None, registro: str, audio_nome: str = "", tipo: str = "ia") -> bool:
+        chave = hashlib.sha256(f"{conversa_id}:{registro}:{time.time_ns()}".encode()).hexdigest()[:32]
+        try:
+            gw.enviar(cfg.conta_base + int(c["usuario"]), c["conta"], c["externo"], texto, chave, anexos)
+        except CanalErro as e:
+            log.warning("envio ao fã falhou na conversa %s: %s", conversa_id, e)
+            return False
+        db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado,audio) VALUES(?,?,?,?,?,?)",
+                (conversa_id, f"{tipo}:{chave}", "ia", registro, agora(), audio_nome))
+        return True
+
+    def responder_fa(c: dict, conversa_id: int, texto: str, veio_audio: bool) -> None:
+        """Fã ativo: conversa até o limite do plano. Sem plano: N respostas de teste e depois o convite (no máximo 1 a cada 12 h)."""
+        marca, nome = c["marca"], MARCAS[c["marca"]]["pessoa"]
+        if c["modo"] == "humano":
+            return  # a equipe assumiu a conversa no painel
+        fa = fa_de(marca, pers.telefone(c["externo"]))
+        respostas = db.um("SELECT COUNT(*) n FROM mensagens WHERE conversa=? AND externo LIKE 'ia:%'", (conversa_id,))["n"]
+        ativo = bool(fa and fa["ativo_ate"] > agora())
+        if ativo:
+            limite = PLANOS_FA.get(fa["plano"], PLANOS_FA["fa"])["msgs_mes"]
+            mes = db.um("SELECT COUNT(*) n FROM mensagens WHERE conversa=? AND externo LIKE 'ia:%' AND criado>=?", (conversa_id, inicio_mes()))["n"]
+            if mes >= limite:
+                if agora() - (c["fora_avisado"] or 0) > 12 * 3600:
+                    db.exec("UPDATE conversas SET fora_avisado=? WHERE id=?", (agora(), conversa_id))
+                    enviar_fa(c, conversa_id, pers.FIM_PLANO.format(link=link_planos(marca)), None, "[aviso] fim do plano", tipo="sis")
+                return
+        elif respostas >= gratis(marca):
+            if agora() - (c["fora_avisado"] or 0) > 12 * 3600:
+                db.exec("UPDATE conversas SET fora_avisado=? WHERE id=?", (agora(), conversa_id))
+                enviar_fa(c, conversa_id, pers.CONVITE.format(link=link_planos(marca)), None, "[aviso] convite para assinar", tipo="sis")
+            return
+        if respostas == 0 and not ativo:
+            enviar_fa(c, conversa_id, pers.BOAS_VINDAS.format(nome=nome, gratis=gratis(marca)), None, "[aviso] boas-vindas", tipo="sis")
+        hist = db.todos("SELECT direcao, texto FROM mensagens WHERE conversa=? AND (externo IS NULL OR externo NOT LIKE 'sis:%') ORDER BY criado DESC, id DESC LIMIT 16",
+                        (conversa_id,))[::-1]
+        try:
+            d = pers.conversar(texto, hist, nome, skill_de(c["usuario"], marca).get("texto") or "", chamar_llm, veio_audio)
+        except Exception as e:  # noqa: BLE001
+            log.warning("persona sem resposta na conversa %s: %s", conversa_id, e)
+            return
+        if not d["texto"] and not d["foto"]:
+            return
+        enviado = False
+        if d["texto"] and vz.ligada and (d["voz"] or c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
+            try:  # nota de voz na voz clonada; se falhar, vai em texto
+                ogg, ms = vz.falar(d["texto"], c["voz_id"] or voz_do({"id": c["usuario"]}))
+                audio_nome = hashlib.sha256(f"{conversa_id}:{time.time_ns()}".encode()).hexdigest()[:32] + ".ogg"
+                (AUDIOS / audio_nome).write_bytes(ogg)
+                enviado = enviar_fa(c, conversa_id, "", [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"], audio_nome)
+            except Exception as e:  # noqa: BLE001
+                log.warning("voz da persona falhou na conversa %s (vai texto): %s", conversa_id, e)
+        if d["texto"] and not enviado:
+            enviar_fa(c, conversa_id, d["texto"], None, d["texto"])
+        if d["foto"]:
+            try:
+                img = gerar_foto(marca, d["foto"])
+                mime = "image/jpeg" if img[:2] == b"\xff\xd8" else "image/png"
+                anexo = {"kind": "image", "mime": mime, "name": "foto.jpg" if mime == "image/jpeg" else "foto.png",
+                         "url": f"data:{mime};base64," + base64.b64encode(img).decode()}
+                enviar_fa(c, conversa_id, "", [anexo], "[foto] " + d["foto"], tipo="foto")
+            except Exception as e:  # noqa: BLE001
+                log.warning("foto da persona falhou na conversa %s: %s", conversa_id, e)
+
+    def admin_persona(request: Request) -> tuple[dict, str]:
+        u = usuario(request)
+        m = marca_de(request)
+        if not eh_persona(m):
+            raise HTTPException(404, "só no produto de persona")
+        if not assinatura(u, m):
+            raise HTTPException(403, "conta sem acesso de administrador desta persona")
+        return u, m
+
+    @app.get("/api/persona")
+    def persona_painel(request: Request):
+        u, m = admin_persona(request)
+        fas = [{**{k: f[k] for k in ("telefone", "plano", "ativo_ate", "email", "nome")}, "ativo": f["ativo_ate"] > agora()}
+               for f in db.todos("SELECT * FROM fas WHERE marca=? ORDER BY ativo_ate DESC LIMIT 500", (m,))]
+        conversas = db.um("SELECT COUNT(*) n FROM conversas c JOIN contas k ON k.id=c.conta WHERE k.marca=?", (m,))["n"]
+        return {**persona_publica(m), "fotos": [f.name for f in fotos_ref(m)], "fas": fas, "conversas": conversas, "ativos": sum(1 for f in fas if f["ativo"])}
+
+    @app.post("/api/persona/ajustes")
+    async def persona_ajustes(request: Request):
+        u, m = admin_persona(request)
+        b = await request.json()
+        if "numero" in b:
+            gravar_ajuste(f"{m}:numero", re.sub(r"\D", "", str(b["numero"]))[:15])
+        if "teste_gratis" in b:
+            gravar_ajuste(f"{m}:teste_gratis", str(max(0, min(50, int(b["teste_gratis"] or 0)))))
+        return persona_publica(m)
+
+    @app.post("/api/persona/fotos")
+    async def persona_foto_nova(request: Request):
+        u, m = admin_persona(request)
+        corpo = await request.body()
+        if not corpo or len(corpo) > 20 * 1024 * 1024:
+            raise HTTPException(422, "foto vazia ou grande demais (até 20 MB)")
+        if len(fotos_ref(m)) >= 6:
+            raise HTTPException(422, "já tem 6 fotos; apague uma antes")
+        try:
+            im = ImageOps.exif_transpose(Image.open(io.BytesIO(corpo))).convert("RGB")
+            im.thumbnail((1280, 1280))
+            out = io.BytesIO()
+            im.save(out, "JPEG", quality=88)
+        except Exception:  # noqa: BLE001
+            raise HTTPException(422, "não consegui abrir essa imagem (use JPG ou PNG)")
+        (PERSONA / m).mkdir(parents=True, exist_ok=True)
+        nome = f"ref_{int(time.time() * 1000)}.jpg"
+        (PERSONA / m / nome).write_bytes(out.getvalue())
+        return {"ok": True, "foto": nome}
+
+    @app.get("/api/persona/fotos/{nome}")
+    def persona_foto_ver(nome: str, request: Request):
+        u, m = admin_persona(request)
+        if not re.fullmatch(r"ref_\d+\.jpg", nome) or not (PERSONA / m / nome).exists():
+            raise HTTPException(404, "foto não encontrada")
+        return FileResponse(PERSONA / m / nome, media_type="image/jpeg")
+
+    @app.delete("/api/persona/fotos/{nome}")
+    def persona_foto_apagar(nome: str, request: Request):
+        u, m = admin_persona(request)
+        if re.fullmatch(r"ref_\d+\.jpg", nome) and (PERSONA / m / nome).exists():
+            (PERSONA / m / nome).unlink()
+        return {"ok": True}
+
+    @app.post("/api/persona/foto_teste")
+    async def persona_foto_teste(request: Request):
+        u, m = admin_persona(request)
+        b = await request.json()
+        cena = str(b.get("cena") or "selfie sorrindo no fim de tarde")[:300]
+        try:
+            img = await run_in_threadpool(gerar_foto, m, cena)
+        except Exception as e:  # noqa: BLE001
+            raise HTTPException(502, f"a foto não saiu: {str(e)[:120]}")
+        return Response(content=img, media_type="image/jpeg" if img[:2] == b"\xff\xd8" else "image/png")
+
+    @app.post("/api/persona/fas")
+    async def persona_fa_cortesia(request: Request):
+        u, m = admin_persona(request)
+        b = await request.json()
+        fone = re.sub(r"\D", "", str(b.get("telefone") or ""))
+        if len(fone) < 10:
+            raise HTTPException(422, "número inválido (DDD + número)")
+        plano = b.get("plano") if b.get("plano") in PLANOS_FA else "fa"
+        dias = max(0, min(400, int(b.get("dias") or 0)))
+        atual = fa_de(m, fone)
+        db.exec("INSERT INTO fas(marca,telefone,plano,ativo_ate,nome,criado) VALUES(?,?,?,?,?,?) ON CONFLICT(marca,telefone) DO UPDATE SET plano=excluded.plano, ativo_ate=excluded.ativo_ate",
+                (m, atual["telefone"] if atual else fone, plano, agora() + dias * 86400, str(b.get("nome") or "")[:80], agora()))
+        return {"ok": True}
+
+    @app.get("/api/publico/persona")
+    def persona_landing(request: Request):
+        m = marca_de(request)
+        if not eh_persona(m):
+            raise HTTPException(404, "só no produto de persona")
+        return {"marca": publica(m), **persona_publica(m)}
+
+    def cakto_fa(evento: str, dados: dict, marca: str, plano: str, email: str) -> dict:
+        """Compra do fã: liberada pelo celular informado no checkout (o mesmo número do WhatsApp)."""
+        cli = dados.get("customer") or {}
+        fone = re.sub(r"\D", "", str(cli.get("phone") or cli.get("cellphone") or cli.get("telefone") or ""))
+        if len(fone) < 10:
+            return {"ok": True, "ignorado": "compra do fã sem telefone"}
+        atual = fa_de(marca, fone)
+        chave = atual["telefone"] if atual else fone
+        if evento in ("purchase_approved", "subscription_renewed", "subscription_created"):
+            base = max(agora(), atual["ativo_ate"] if atual else 0)
+            pl = plano if plano in PLANOS_FA else "fa"
+            db.exec("""INSERT INTO fas(marca,telefone,plano,ativo_ate,email,nome,pedido,criado) VALUES(?,?,?,?,?,?,?,?)
+                       ON CONFLICT(marca,telefone) DO UPDATE SET plano=excluded.plano, ativo_ate=excluded.ativo_ate, email=excluded.email, pedido=excluded.pedido""",
+                    (marca, chave, pl, base + (PLANOS_FA[pl]["dias"] + 2) * 86400, email or "", str(cli.get("name") or "")[:80], str(dados.get("id") or ""), agora()))
+            return {"ok": True, "liberado_fa": chave, "marca": marca}
+        if evento in ("refund", "chargeback", "subscription_canceled", "subscription_cancelled"):
+            db.exec("UPDATE fas SET ativo_ate=? WHERE marca=? AND telefone=?", (agora(), marca, chave))
+            return {"ok": True, "revogado_fa": chave}
+        return {"ok": True, "ignorado": evento}
+
     # ------------------------------------------------ webhook do gateway (mensagens e estado)
     def skill_de(uid: int, marca: str) -> dict:
         """Regras do atendente. Cada seção '## Título' é uma skill; as desligadas no painel não vão para a IA."""
@@ -321,6 +555,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             return
         if c["so_liberadas"] and not c["liberada"]:
             return  # modo teste: só as conversas que o dono liberou
+        if eh_persona(c["marca"]):
+            return responder_fa(c, conversa_id, texto, veio_audio)
         u = db.um("SELECT * FROM usuarios WHERE id=?", (c["usuario"],))
         r = resumo(u, c["marca"])
         if not r["assinante"] or r["usadas"] >= r["limite_msgs"]:
@@ -472,8 +708,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             except Exception:  # noqa: BLE001
                 e = {"erro": "o servidor de voz não respondeu agora"}
         if e.get("pronta"):
-            db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca IN ('whats','insta') AND voz_id=''", (vid, u["id"]))
-        contas = db.todos("SELECT id, rotulo, marca, voz_modo FROM contas WHERE usuario=? AND marca IN ('whats','insta') AND ja_conectou=1", (u["id"],))
+            db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca IN ('whats','insta','fael') AND voz_id=''", (vid, u["id"]))
+        contas = db.todos("SELECT id, rotulo, marca, voz_modo FROM contas WHERE usuario=? AND marca IN ('whats','insta','fael') AND ja_conectou=1", (u["id"],))
         return {"ligada": vz.ligada, "voz": vid, "estado": e, "contas": contas, "minimo_minutos": 10}
 
     @app.post("/api/voz/amostras")
@@ -691,9 +927,11 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         db.exec("INSERT INTO eventos_cakto(id,recebido,corpo) VALUES(?,?,?)", (eid, agora(), cru.decode("utf-8", "replace")[:20000]))
         email = auth.normalizar_email((dados.get("customer") or {}).get("email"))
         alvo = cfg.planos_por_produto.get(str((dados.get("product") or {}).get("id") or ""))
-        if not email or not alvo or ":" not in alvo:
+        if not alvo or ":" not in alvo or (not email and not eh_persona(alvo.split(":", 1)[0])):
             return {"ok": True, "ignorado": "sem email ou produto desconhecido"}
         marca, plano = alvo.split(":", 1)
+        if eh_persona(marca):
+            return cakto_fa(evento, dados, marca, plano, email)
         u = auth.usuario_por_email(db, email)
         a = db.um("SELECT * FROM assinaturas WHERE usuario=? AND marca=?", (u["id"], marca))
         if evento in ("purchase_approved", "subscription_renewed", "subscription_created"):
@@ -743,8 +981,10 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def pagina(nome: str, request: Request) -> HTMLResponse:
         m = marca_de(request)
         mk = MARCAS[m]
+        if eh_persona(m) and nome == "index.html":
+            nome = "persona.html"
         html = (ESTATICO / nome).read_text(encoding="utf-8")
-        for chave, valor in {"{{NOME}}": mk["nome"], "{{REDE}}": mk["rede"], "{{COR}}": mk["cor"], "{{ATENDE}}": mk["atende"], "{{MARCA}}": m,
+        for chave, valor in {"{{NOME}}": mk["nome"], "{{REDE}}": mk["rede"], "{{COR}}": mk["cor"], "{{ATENDE}}": mk["atende"], "{{MARCA}}": m, "{{PESSOA}}": mk.get("pessoa", ""), "{{INSTAGRAM}}": mk.get("instagram", ""), "{{ARROBA}}": mk.get("arroba", ""),
                              "{{MARCA_JSON}}": json.dumps(publica(m), ensure_ascii=False)}.items():
             html = html.replace(chave, valor)
         v = os.environ.get("GIT_COMMIT") or VERSAO_INICIO
