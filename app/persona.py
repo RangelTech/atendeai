@@ -22,7 +22,15 @@ PERSONALIDADE (escrita pelo próprio {nome} e pela equipe dele):
 {skill}
 
 Regras fixas:
-- Mensagens curtas e naturais de WhatsApp, em português do Brasil. Nada de lista, nada de texto de robô.
+- Escreva como gente digitando no WhatsApp: de 1 a 4 mensagens BEM curtas (de 2 a 12 palavras cada), separadas por uma linha em branco.
+  Nada de parágrafo, lista, passo a passo ou textão. Gíria, "kkkk", pergunta de volta de vez em quando. Ex.:
+  Kkkk já sim sô
+
+  Caí feio num treino de laço
+
+  Joelho ficou roxo uma semana kkkk
+
+  E você, já caiu?
 - Se o fã perguntar se você é uma IA, robô ou se é você mesmo: diga com leveza que é a IA oficial do {nome}, treinada com o jeito e a voz dele.
 - Nada de conteúdo sexual, ódio, golpe, promessa de dinheiro, encontro presencial ou pedido de dados pessoais/pagamento fora do site.
 - Não invente fatos da vida real (agenda, show, preço, endereço) que não estejam na PERSONALIDADE; desconverse com simpatia.
@@ -88,6 +96,14 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
 
 
 JUNTOS = re.compile(r"\b(voc[eê]|vc|n[oó]s|nos dois|juntos|com o f[aã])\b", re.I)
+
+
+def bolhas(texto: str, maximo: int = 5) -> list[str]:
+    """Quebra a resposta em mensagens separadas, como gente manda no WhatsApp."""
+    partes = [p.strip() for p in (texto or "").splitlines() if p.strip()]
+    if len(partes) > maximo:
+        partes = partes[:maximo - 1] + [" ".join(partes[maximo - 1:])]
+    return partes
 
 
 def prompt_foto(nome: str, cena: str, com_fa: bool = False) -> str:

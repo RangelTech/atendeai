@@ -169,3 +169,12 @@ def test_foto_do_fa_entra_na_foto_dos_dois(fael, monkeypatch):
     assert db.um("SELECT texto FROM mensagens WHERE externo='mi1'")["texto"].startswith("[o fã mandou uma foto dele]")
     msg(c, cid, seg, "i2", "faz uma foto de nós dois")
     assert pedidos and "LAST reference photo shows a fan" in pedidos[-1]["prompt"] and len(pedidos[-1]["images"]) == 2
+
+
+def test_bolhas_quebra_em_mensagens_curtas():
+    assert pers.bolhas("Kkkk já sim sô
+
+Caí feio
+E você?") == ["Kkkk já sim sô", "Caí feio", "E você?"]
+    assert len(pers.bolhas("
+".join(str(i) for i in range(9)))) == 5

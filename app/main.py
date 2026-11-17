@@ -422,7 +422,10 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             except Exception as e:  # noqa: BLE001
                 log.warning("voz da persona falhou na conversa %s (vai texto): %s", conversa_id, e)
         if d["texto"] and not enviado:
-            enviar_fa(c, conversa_id, d["texto"], None, d["texto"])
+            for i, bolha in enumerate(pers.bolhas(d["texto"])):
+                if i:
+                    time.sleep(min(3.0, 0.8 + len(bolha) / 40))  # pausa de quem digita
+                enviar_fa(c, conversa_id, bolha, None, bolha)
         if d["foto"]:
             try:
                 fa_foto = foto_do_fa(marca, conversa_id)
