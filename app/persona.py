@@ -83,6 +83,7 @@ def conversar(texto: str, historico: list[dict], nome: str, skill: str, llm: Cal
     voz = bool(re.match(r"^\s*\[voz\]", r, re.I))
     r = re.sub(r"^\s*\[voz\]\s*", "", r, flags=re.I).strip()
     r = re.sub(r"\[(?:humano|chamar)\]", "", r, flags=re.I).strip()
+    r = re.sub(r"^(?:\s*\[[A-ZÀ-Ú_ ]{2,20}\]\s*)+", "", r).strip()  # marcas soltas que o modelo inventa ([AHORA], [TEXTO]...)
     return {"texto": r[:1500], "voz": voz, "foto": foto}
 
 
