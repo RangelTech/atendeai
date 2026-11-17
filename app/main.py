@@ -412,9 +412,10 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if not d["texto"] and not d["foto"]:
             return
         enviado = False
-        if d["texto"] and vz.ligada and (d["voz"] or c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
+        voz_persona = ajuste(f"{marca}:voz_id")  # só a voz clonada da própria persona (nunca a voz de outra pessoa da conta)
+        if d["texto"] and vz.ligada and voz_persona and (d["voz"] or c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
             try:  # nota de voz na voz clonada; se falhar, vai em texto
-                ogg, ms = vz.falar(d["texto"], c["voz_id"] or voz_do({"id": c["usuario"]}))
+                ogg, ms = vz.falar(d["texto"], voz_persona)
                 audio_nome = hashlib.sha256(f"{conversa_id}:{time.time_ns()}".encode()).hexdigest()[:32] + ".ogg"
                 (AUDIOS / audio_nome).write_bytes(ogg)
                 enviado = enviar_fa(c, conversa_id, "", [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"], audio_nome)
@@ -717,10 +718,15 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         k = db.um("SELECT voz_id FROM contas WHERE usuario=? AND voz_id!='' LIMIT 1", (u["id"],))
         return (k or {}).get("voz_id") or f"u{u['id']}"
 
+    def vid_de(u: dict, request: Request) -> str:
+        """Voz que a aba 'Minha voz' grava e treina: na persona é a voz dela (persona-<marca>), separada da voz do dono da conta."""
+        m = marca_de(request)
+        return f"persona-{m}" if eh_persona(m) else voz_do(u)
+
     @app.get("/api/voz")
     def minha_voz(request: Request):
         u = usuario(request)
-        vid = voz_do(u)
+        vid = vid_de(u, request)
         guardado = ESTADO_VOZ.get(vid)
         if guardado and time.time() - guardado[0] < 60:
             e = guardado[1]
@@ -730,7 +736,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 ESTADO_VOZ[vid] = (time.time(), e)
             except Exception:  # noqa: BLE001
                 e = {"erro": "o servidor de voz não respondeu agora"}
-        if e.get("pronta"):
+        if e.get("pronta") and eh_persona(marca_de(request)):
+            gravar_ajuste(f"{marca_de(request)}:voz_id", vid)
+        elif e.get("pronta"):
             db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca IN ('whats','insta','fael') AND voz_id=''", (vid, u["id"]))
         contas = db.todos("SELECT id, rotulo, marca, voz_modo FROM contas WHERE usuario=? AND marca IN ('whats','insta','fael') AND ja_conectou=1", (u["id"],))
         return {"ligada": vz.ligada, "voz": vid, "estado": e, "contas": contas, "minimo_minutos": 10}
@@ -744,8 +752,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         tipo = (request.headers.get("content-type") or "audio/webm").split(";")[0]
         nome = "amostra." + {"audio/ogg": "ogg", "audio/mpeg": "mp3", "audio/wav": "wav", "audio/x-wav": "wav", "audio/mp4": "m4a", "audio/x-m4a": "m4a"}.get(tipo, "webm")
         try:
-            ESTADO_VOZ.pop(voz_do(u), None)
-            return await run_in_threadpool(vz.amostra, voz_do(u), corpo, nome)
+            ESTADO_VOZ.pop(vid_de(u, request), None)
+            return await run_in_threadpool(vz.amostra, vid_de(u, request), corpo, nome)
         except Exception as e:  # noqa: BLE001
             log.warning("amostra de voz falhou: %s", e)
             raise HTTPException(502, "não consegui guardar esse áudio agora; tente de novo")
@@ -754,8 +762,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     def voz_treinar(request: Request):
         u = usuario(request)
         try:
-            ESTADO_VOZ.pop(voz_do(u), None)
-            return vz.treinar(voz_do(u))
+            ESTADO_VOZ.pop(vid_de(u, request), None)
+            return vz.treinar(vid_de(u, request))
         except Exception as e:  # noqa: BLE001
             raise HTTPException(502, f"o treino não começou: {str(e)[:120]}")
 
@@ -765,7 +773,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         b = await request.json()
         texto = str(b.get("texto") or "Oi! Tudo bem? Aqui é do atendimento. Como posso te ajudar hoje?")[:400]
         try:
-            ogg, _ = await run_in_threadpool(vz.falar, texto, voz_do(u))
+            ogg, _ = await run_in_threadpool(vz.falar, texto, vid_de(u, request))
         except Exception:  # noqa: BLE001
             raise HTTPException(502, "a voz ainda não está pronta ou o servidor não respondeu")
         return Response(content=ogg, media_type="audio/ogg")
