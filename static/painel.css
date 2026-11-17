@@ -87,3 +87,4 @@
 .voz-grava{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
 .barra-voz{height:10px;background:var(--bg2,#0d0f13);border-radius:99px;overflow:hidden}.barra-voz span{display:block;height:100%;width:0;background:var(--ac,#22c55e);transition:width .4s}
 .fala audio{display:block;width:240px;max-width:100%;margin-bottom:6px}
+.conv-env .mic{min-width:48px}.conv-env .mic.gravando{background:#dc2626;color:#fff;border-color:#dc2626;animation:pulsaMic 1.2s infinite}@keyframes pulsaMic{50%{opacity:.6}}

@@ -56,6 +56,7 @@
     if (convAtual) abrirConversa(convAtual, true)
   }
   const QUEM = { entrada: 'cliente', ia: 'IA', humano: 'você', eco: 'enviado pelo celular' }
+  let GRAV = null  // gravação de áudio em andamento no chat
   async function abrirConversa(id, silencioso) {
     convAtual = id
     const c = await api('/api/conversas/' + id)
@@ -67,12 +68,31 @@
         <div class="acoes">${c.modo_teste ? (c.liberada ? '<button class="btn btn-ghost sm" id="bloquear">Tirar do teste</button>' : '<button class="btn btn-pri sm" id="liberar">Liberar IA nesta conversa</button>') : ''}
         ${c.modo === 'humano' ? '<button class="btn btn-sec sm" id="devolver">Devolver para a IA</button>' : '<button class="btn btn-sec sm" id="assumir">Assumir conversa</button>'}</div></div>
       <div class="conv-msgs">${c.mensagens.map((m) => `<div class="fala ${m.direcao === 'eco' ? 'humano' : esc(m.direcao)}">${m.audio ? `<audio controls preload="none" src="/api/audios/${esc(m.audio)}"></audio>` : ''}${esc(m.texto)}<span class="quem">${QUEM[m.direcao] || ''} · ${hora(m.criado)}</span></div>`).join('')}</div>
-      <form class="conv-env" id="env"><input id="env-txt" placeholder="Escreva como você (a IA para nesta conversa)" autocomplete="off"><button class="btn btn-pri">Enviar</button></form>`
+      <form class="conv-env" id="env"><button type="button" class="btn btn-sec mic ${GRAV ? 'gravando' : ''}" id="env-mic" title="Gravar áudio">${GRAV ? '■ Parar e enviar' : '🎤'}</button><input id="env-txt" placeholder="Escreva como você (a IA para nesta conversa)" autocomplete="off">${window.MARCA.codigo === 'whats' || window.MARCA.codigo === 'insta' ? '<button type="button" class="btn btn-sec" id="env-voz" title="Digite e mande como áudio na sua voz clonada">Na minha voz</button>' : ''}<button class="btn btn-pri">Enviar</button></form>`
     if (rolarFim) { const m = $('.conv-msgs', d); m.scrollTop = m.scrollHeight }
     $('#liberar', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/liberar`); abrirConversa(id) })
     $('#bloquear', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/bloquear`); abrirConversa(id) })
     $('#assumir', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/assumir`); abrirConversa(id) ; carregarConversas() })
     $('#devolver', d)?.addEventListener('click', async () => { await post(`/api/conversas/${id}/devolver`); abrirConversa(id); carregarConversas() })
+    $('#env-mic', d).onclick = async () => {
+      if (GRAV) { GRAV.stop(); return }
+      try {
+        const st = await navigator.mediaDevices.getUserMedia({ audio: true })
+        const partes = []; GRAV = new MediaRecorder(st); GRAV.conv = id
+        GRAV.ondataavailable = (ev) => partes.push(ev.data)
+        GRAV.onstop = async () => { st.getTracks().forEach((t) => t.stop()); const conv = GRAV.conv, tipo = GRAV.mimeType; GRAV = null
+          const r = await fetch(`/api/conversas/${conv}/audio`, { method: 'POST', body: new Blob(partes, { type: tipo }), headers: { 'Content-Type': tipo || 'audio/webm' } })
+          if (!r.ok) { let j = {}; try { j = await r.json() } catch {} alert(j.detail || 'Não consegui enviar o áudio.') }
+          abrirConversa(conv) }
+        GRAV.start(); abrirConversa(id, true)
+      } catch { alert('Libere o microfone no navegador para gravar.') }
+    }
+    $('#env-voz', d)?.addEventListener('click', async () => {
+      const t = $('#env-txt').value.trim()
+      if (!t) { alert('Escreva o que quer falar e toque em "Na minha voz".'); return }
+      const b = $('#env-voz'); b.disabled = true; b.textContent = 'Gerando…'
+      try { await post(`/api/conversas/${id}/minha-voz`, { texto: t }); $('#env-txt').value = ''; abrirConversa(id) } catch (err) { alert(err.message); b.disabled = false; b.textContent = 'Na minha voz' }
+    })
     $('#env', d).onsubmit = async (e) => {
       e.preventDefault()
       const t = $('#env-txt').value.trim()

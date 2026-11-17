@@ -447,7 +447,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                         WHERE m.audio=? AND k.usuario=?""", (nome, u["id"]))
         if not dono or not (AUDIOS / nome).exists():
             raise HTTPException(404, "áudio não encontrado")
-        return FileResponse(AUDIOS / nome, media_type="audio/ogg")
+        cab = (AUDIOS / nome).open("rb").read(12)
+        tipo = "audio/mp4" if cab[4:8] == b"ftyp" else "audio/mpeg" if cab[:3] == b"ID3" or cab[:2] == b"ÿû" else "audio/webm" if cab[:4] == b"Eß£" else "audio/ogg"
+        return FileResponse(AUDIOS / nome, media_type=tipo)
 
     # ------------------------------------------------ minha voz (clonagem, plano Voz, só WhatsApp)
     ESTADO_VOZ: dict = {}  # cache de 60 s do estado da voz (o rt-voz na GPU demora para responder)
@@ -508,6 +510,57 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         except Exception:  # noqa: BLE001
             raise HTTPException(502, "a voz ainda não está pronta ou o servidor não respondeu")
         return Response(content=ogg, media_type="audio/ogg")
+
+    def para_nota_de_voz(dados: bytes) -> tuple[bytes, int]:
+        """Qualquer áudio do navegador (webm/opus, mp4...) vira ogg/opus mono, o formato de nota de voz."""
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            ent, sai = os.path.join(d, "ent"), os.path.join(d, "sai.ogg")
+            open(ent, "wb").write(dados)
+            subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", ent, "-ac", "1", "-ar", "48000", "-c:a", "libopus", "-b:a", "32k", sai], check=True, timeout=120)
+            dur = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", sai], capture_output=True, text=True).stdout.strip()
+            return open(sai, "rb").read(), int(float(dur or 0) * 1000)
+
+    def enviar_voz(u: dict, conv: int, ogg: bytes, ms: int, registro: str) -> dict:
+        c = minha_conversa(u, conv)
+        chave = hashlib.sha256(f"{conv}:voz:{time.time_ns()}".encode()).hexdigest()[:32]
+        try:
+            gw.enviar(conta_gw(u), c["conta"], c["externo"], "", chave, [voz_mod.anexo_voz(ogg, ms)])
+        except CanalErro as e:
+            raise HTTPException(502, f"não consegui enviar o áudio: {e}")
+        (AUDIOS / (chave + ".ogg")).write_bytes(ogg)
+        db.exec("UPDATE conversas SET modo='humano', ultima=? WHERE id=?", (agora(), conv))
+        db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado,audio) VALUES(?,?,?,?,?,?)",
+                (conv, "humano:" + chave, "humano", registro, agora(), chave + ".ogg"))
+        return {"ok": True}
+
+    @app.post("/api/conversas/{conv}/audio")
+    async def responder_gravado(conv: int, request: Request):
+        """O dono grava no painel e manda como nota de voz (a IA para nesta conversa)."""
+        u = usuario(request)
+        dados = await request.body()
+        if not dados or len(dados) > 25 * 1024 * 1024:
+            raise HTTPException(422, "áudio vazio ou grande demais")
+        try:
+            ogg, ms = await run_in_threadpool(para_nota_de_voz, dados)
+        except Exception as e:  # noqa: BLE001
+            log.warning("conversão de áudio falhou: %s", e)
+            raise HTTPException(422, "não consegui ler esse áudio")
+        return await run_in_threadpool(enviar_voz, u, conv, ogg, ms, "[áudio gravado por você]")
+
+    @app.post("/api/conversas/{conv}/minha-voz")
+    async def responder_na_voz(conv: int, request: Request):
+        """O dono digita e o texto vai como nota de voz na voz clonada dele."""
+        u = usuario(request)
+        texto = str((await request.json()).get("texto") or "").strip()[:800]
+        if not texto:
+            raise HTTPException(422, "escreva o que quer falar")
+        try:
+            ogg, ms = await run_in_threadpool(vz.falar, texto, voz_do(u))
+        except Exception:  # noqa: BLE001
+            raise HTTPException(502, "a sua voz ainda não está pronta ou o servidor de voz não respondeu")
+        return await run_in_threadpool(enviar_voz, u, conv, ogg, ms, "[áudio na sua voz] " + texto)
 
     @app.post("/api/conversas/{conv}/{acao}")
     async def conversa_acao(conv: int, acao: str, request: Request):
