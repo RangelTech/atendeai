@@ -229,7 +229,7 @@ h2{font-size:clamp(34px,4.6vw,58px);line-height:1.05;margin:14px 0 18px;letter-s
     const brl = (v) => v.toFixed(2).replace('.', ',')
     document.getElementById('lista-planos').innerHTML = p.planos.map((x, i) => `<div class="plano ${i === 0 ? 'top' : ''} rev vis">${i === 0 ? '<span class="tag">Mais escolhido</span>' : ''}
       <h3>${esc(x.nome)}</h3><div class="preco">R$ ${brl(x.preco)}<small>/mês</small></div><ul>${x.itens.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
-      ${x.checkout ? `<a class="btn ${i === 0 ? 'btn-ouro' : 'btn-vidro'}" href="${esc(x.checkout)}">Assinar ${esc(x.nome)}</a>` : `<a class="btn btn-vidro" ${p.whatsapp ? `href="${esc(p.whatsapp)}"` : 'aria-disabled="true"'}>Em breve · teste grátis</a>`}</div>`).join('')
+      <a class="btn ${i === 0 ? 'btn-ouro' : 'btn-vidro'}" href="${esc(x.checkout || p.whatsapp || '#planos')}" ${!x.checkout && p.whatsapp ? 'target="_blank" rel="noopener"' : ''}>Assinar ${esc(x.nome)}</a></div>`).join('')
     if (p.whatsapp) {
       document.querySelectorAll('[data-zap]').forEach((a) => { a.href = p.whatsapp; a.target = '_blank'; a.rel = 'noopener' })
       document.getElementById('gratis').innerHTML = `Quer conhecer antes? <a href="${esc(p.whatsapp)}" target="_blank" rel="noopener" style="color:var(--verde);font-weight:700">Mande um oi no WhatsApp</a> e ganhe ${p.gratis} mensagens grátis.`
