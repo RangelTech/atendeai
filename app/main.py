@@ -448,7 +448,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         if not dono or not (AUDIOS / nome).exists():
             raise HTTPException(404, "áudio não encontrado")
         cab = (AUDIOS / nome).open("rb").read(12)
-        tipo = "audio/mp4" if cab[4:8] == b"ftyp" else "audio/mpeg" if cab[:3] == b"ID3" or cab[:2] == b"ÿû" else "audio/webm" if cab[:4] == b"Eß£" else "audio/ogg"
+        tipo = "audio/mp4" if cab[4:8] == b"ftyp" else "audio/mpeg" if cab[:3] == b"ID3" or cab[:2] == bytes([0xFF, 0xFB]) else "audio/webm" if cab[:4] == bytes([0x1A, 0x45, 0xDF, 0xA3]) else "audio/ogg"
         return FileResponse(AUDIOS / nome, media_type=tipo)
 
     # ------------------------------------------------ minha voz (clonagem, plano Voz, só WhatsApp)
