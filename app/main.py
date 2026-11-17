@@ -335,9 +335,9 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             return
         chave = hashlib.sha256(f"{conversa_id}:{texto}:{time.time_ns()}".encode()).hexdigest()[:32]
         anexos, registro, audio_nome = None, d["texto"], ""
-        if vz.ligada and (c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
+        if vz.ligada and (d.get("voz") or c["voz_modo"] == "sempre" or (c["voz_modo"] == "quando_audio" and veio_audio)):
             try:  # nota de voz na voz do dono (rt-voz, GPU própria); se falhar, vai em texto
-                ogg, ms = vz.falar(d["texto"], c["voz_id"] or None)
+                ogg, ms = vz.falar(d["texto"], c["voz_id"] or voz_do({"id": c["usuario"]}))
                 anexos, registro = [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"]
                 audio_nome = chave + ".ogg"
                 (AUDIOS / audio_nome).write_bytes(ogg)
@@ -472,8 +472,8 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             except Exception:  # noqa: BLE001
                 e = {"erro": "o servidor de voz não respondeu agora"}
         if e.get("pronta"):
-            db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca='whats' AND voz_id=''", (vid, u["id"]))
-        contas = db.todos("SELECT id, rotulo, voz_modo FROM contas WHERE usuario=? AND marca='whats' AND ja_conectou=1", (u["id"],))
+            db.exec("UPDATE contas SET voz_id=? WHERE usuario=? AND marca IN ('whats','insta') AND voz_id=''", (vid, u["id"]))
+        contas = db.todos("SELECT id, rotulo, marca, voz_modo FROM contas WHERE usuario=? AND marca IN ('whats','insta') AND ja_conectou=1", (u["id"],))
         return {"ligada": vz.ligada, "voz": vid, "estado": e, "contas": contas, "minimo_minutos": 10}
 
     @app.post("/api/voz/amostras")

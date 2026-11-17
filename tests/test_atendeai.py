@@ -369,3 +369,12 @@ def test_marcador_de_audio_nao_vaza_para_o_cliente():
                 "WhatsApp", "ia", 0, time.time(), llm)
     assert d["texto"] == "Claro! Já chamo o dono."
     assert all("[áudio]" not in (x.get("content") or "") for x in vistos if x["role"] == "assistant")
+
+
+def test_skill_pede_audio_com_voz():
+    from app import atendente
+    s = {"texto": "## Respostas em áudio\nResponda em áudio na primeira mensagem.", "horario": "", "palavras_humano": ""}
+    d = atendente.decidir("oi", [{"direcao": "entrada", "texto": "oi"}], s, "WhatsApp", "ia", 0, 0, lambda m: "[VOZ] Oi! Seja bem-vindo à pizzaria.")
+    assert d["acao"] == "responder" and d["voz"] is True and d["texto"].startswith("Oi!")
+    d2 = atendente.decidir("oi", [{"direcao": "entrada", "texto": "oi"}], s, "WhatsApp", "ia", 0, 0, lambda m: "Oi! Tudo bem?")
+    assert d2["voz"] is False

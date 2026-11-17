@@ -115,6 +115,7 @@
     ['Tom de voz', 'Fale como o dono: próximo, educado e direto.\nUse o nome do cliente.\nEmojis com moderação.\nRespostas curtas (até 3 frases).'],
     ['Quando chamar o dono', 'Reclamação, pedido de desconto, negociação, cancelamento ou qualquer coisa que não esteja nas skills: responda o que souber e diga que vai chamar o responsável.'],
     ['Nunca fazer', 'Nunca dar desconto sem o dono.\nNunca prometer prazo que não está escrito aqui.\nNunca inventar preço ou produto.'],
+    ['Respostas em áudio', 'Responda em áudio, com a minha voz, quando:\n- for a primeira mensagem do cliente (dê boas-vindas e diga o que vendemos);\n- o cliente pedir para explicar um produto ou o cardápio;\n- o cliente mandar áudio.\nNo resto, responda em texto.\nNo áudio: frases curtas, tom animado, sem ler links nem listas longas (mande o link em texto depois).'],
     ['Agenda e horários', 'Horário de funcionamento por dia:\nComo agendar:\nAntecedência mínima:'],
   ]
   let SK = [], OFF = new Set(), SEL = 0
@@ -208,7 +209,7 @@
   }
 
   // ------------------------------------------------ minha voz (plano Voz, só WhatsApp)
-  if (window.MARCA.codigo === 'whats') $('#aba-voz').hidden = false
+  if (['whats', 'insta'].includes(window.MARCA.codigo)) $('#aba-voz').hidden = false
   let REC = null, PEDACOS = [], T0 = 0, TIMER = null
   const vozMsg = (t, tipo = '') => { $('#voz-msg').textContent = t; $('#voz-msg').className = 'msg ' + tipo }
   async function carregarVoz() {
@@ -220,7 +221,7 @@
     $('#voz-total').textContent = min >= v.minimo_minutos ? 'Já dá para treinar. Mais minutos deixam a voz mais natural.' : `Faltam ${Math.max(0, v.minimo_minutos - min).toFixed(1).replace('.', ',')} min para poder treinar.`
     $('#voz-treinar').disabled = min < v.minimo_minutos || e.etapa === 'treinando'
     $('#voz-ouvir').disabled = !e.pronta
-    $('#voz-contas').innerHTML = v.contas.length ? v.contas.map((k) => `<div class="conta-linha"><b>${esc(k.rotulo || 'WhatsApp')}</b>
+    $('#voz-contas').innerHTML = v.contas.length ? v.contas.map((k) => `<div class="conta-linha"><b>${esc(k.rotulo || (k.marca === 'insta' ? 'Instagram' : 'WhatsApp'))}</b>
       <select class="sel-voz" data-voz="${k.id}"><option value="desligado" ${k.voz_modo === 'desligado' ? 'selected' : ''}>Respostas em texto</option>
       <option value="quando_audio" ${k.voz_modo === 'quando_audio' ? 'selected' : ''}>Áudio quando o cliente mandar áudio</option>
       <option value="sempre" ${k.voz_modo === 'sempre' ? 'selected' : ''}>Sempre em áudio</option></select></div>`).join('') : '<p class="vazio">Conecte o WhatsApp para escolher.</p>'
@@ -284,7 +285,7 @@
       <div class="acoes">
         ${k.estado === 'connected' ? '' : `<button class="btn btn-pri sm" data-k="${k.id}" data-a="${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'continuar' : 'reconectar'}">${k.estado === 'pending_auth' || k.estado.startsWith('awaiting') ? 'Continuar' : 'Reconectar'}</button>`}
         <button class="btn btn-sec sm" data-k="${k.id}" data-a="${k.ia_ligada ? 'desligar_ia' : 'ligar_ia'}">${k.ia_ligada ? 'Pausar IA' : 'Ligar IA'}</button>
-        ${window.MARCA.codigo === 'whats' ? `<select class="sel-voz" data-voz="${k.id}" title="Responder em áudio com a sua voz (plano Voz)">
+        ${['whats', 'insta'].includes(window.MARCA.codigo) ? `<select class="sel-voz" data-voz="${k.id}" title="Responder em áudio com a sua voz (plano Voz)">
           <option value="desligado" ${k.voz_modo === 'desligado' ? 'selected' : ''}>Respostas em texto</option>
           <option value="quando_audio" ${k.voz_modo === 'quando_audio' ? 'selected' : ''}>Áudio quando o cliente mandar áudio</option>
           <option value="sempre" ${k.voz_modo === 'sempre' ? 'selected' : ''}>Sempre em áudio</option></select>` : ''}
