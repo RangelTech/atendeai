@@ -1,0 +1,22 @@
+# Só NOMES das variáveis. Os valores ficam no Infisical (nunca no git). Spec 57, seção 0A.2.
+infisical:
+  projeto: rt-produtos
+  pasta: atendeai
+  ambiente: prod
+segredos:
+  - ATENDEAI_ADMIN_KEY
+  - ATENDEAI_CAKTO_SEGREDO
+  - ATENDEAI_CANAIS_TOKEN
+  - ATENDEAI_DEMO_SENHA
+  - ATENDEAI_IMAGEM_BASE
+  - ATENDEAI_IMAGEM_KEY
+  - ATENDEAI_LLM_BASE
+  - ATENDEAI_LLM_KEY
+  - ATENDEAI_LLM_MODELO
+  - ATENDEAI_SEGREDO_SESSAO
+  - ATENDEAI_SMTP_FROM
+  - ATENDEAI_VOZ_TOKEN
+  - SMTP_HOST
+  - SMTP_PASSWORD
+  - SMTP_PORT
+  - SMTP_USER
