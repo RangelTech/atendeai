@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Redirect
 from fastapi.staticfiles import StaticFiles
 
 from app import atendente, auth, mailer, senha_rotas
-from produtos_core import acesso
+from produtos_core import acesso, armazenamento
 from app import persona as pers
 from app import voz as voz_mod
 from app.canais import CanalErro, Gateway, assinatura_ok
@@ -51,6 +51,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     db = Banco(os.path.join(cfg.dados, "atendeai.db"))
     AUDIOS = Path(cfg.dados) / "audios"   # respostas em voz e áudios dos clientes, para tocar no painel
     AUDIOS.mkdir(parents=True, exist_ok=True)
+    esp = armazenamento.Espelho(armazenamento.Armazenamento(pasta_local=os.path.join(cfg.dados, "arquivos")), cfg.dados)  # MinIO (spec 57 §8.6)
     gw = gateway or Gateway(cfg.canais_url, cfg.canais_token)
     vz = voz or voz_mod.Voz(cfg.voz_base, cfg.voz_token)
     app = FastAPI(title="Atende AI", docs_url=None, redoc_url=None, openapi_url=None)
@@ -180,6 +181,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                      login=_login, usuario=usuario, criar_usuario=lambda email: auth.usuario_por_email(db, email),
                      produto="Atende AI", base_url=cfg.base_url, destino="/painel", cor="#7c5cff",
                      demo_email=lambda: cfg.demo_email, demo_senha=lambda: cfg.demo_senha, dev=cfg.dev)  # cadastro e login comuns (spec 57 §5A)
+    armazenamento.registrar(app, esp.arm)  # MinIO (spec 57 §8.6)
 
     @app.post("/api/sair")
     def sair(request: Request):
@@ -310,7 +312,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             return TESTE_GRATIS
 
     def fotos_ref(marca: str) -> list[Path]:
-        d = PERSONA / marca
+        d = esp.garantir_pasta(PERSONA / marca)
         return sorted(d.glob("ref_*.jpg")) if d.exists() else []
 
     def link_planos(marca: str) -> str:
@@ -406,6 +408,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 ogg, ms = vz.falar(d["texto"], voz_persona)
                 audio_nome = hashlib.sha256(f"{conversa_id}:{time.time_ns()}".encode()).hexdigest()[:32] + ".ogg"
                 (AUDIOS / audio_nome).write_bytes(ogg)
+                esp.guardar(AUDIOS / audio_nome)
                 enviado = enviar_fa(c, conversa_id, "", [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"], audio_nome)
             except Exception as e:  # noqa: BLE001
                 log.warning("voz da persona falhou na conversa %s (vai texto): %s", conversa_id, e)
@@ -416,7 +419,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 enviar_fa(c, conversa_id, bolha, None, bolha)
         if d["foto"]:
             try:
-                fa_foto = foto_do_fa(marca, conversa_id)
+                fa_foto = esp.garantir(foto_do_fa(marca, conversa_id))
                 tem_fa = fa_foto.exists() and time.time() - fa_foto.stat().st_mtime < 7 * 86400
                 if pers.JUNTOS.search(d["foto"]) and not tem_fa:  # foto dos dois sem a foto do fã: pede a foto em vez de inventar alguém
                     enviar_fa(c, conversa_id, "Manda uma foto sua aqui primeiro que eu monto nós dois juntos 🤠", None, "[pediu a foto do fã]")
@@ -475,20 +478,21 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         (PERSONA / m).mkdir(parents=True, exist_ok=True)
         nome = f"ref_{int(time.time() * 1000)}.jpg"
         (PERSONA / m / nome).write_bytes(out.getvalue())
+        esp.guardar(PERSONA / m / nome)
         return {"ok": True, "foto": nome}
 
     @app.get("/api/persona/fotos/{nome}")
     def persona_foto_ver(nome: str, request: Request):
         u, m = admin_persona(request)
-        if not re.fullmatch(r"ref_\d+\.jpg", nome) or not (PERSONA / m / nome).exists():
+        if not re.fullmatch(r"ref_\d+\.jpg", nome) or not esp.garantir(PERSONA / m / nome).exists():
             raise HTTPException(404, "foto não encontrada")
         return FileResponse(PERSONA / m / nome, media_type="image/jpeg")
 
     @app.delete("/api/persona/fotos/{nome}")
     def persona_foto_apagar(nome: str, request: Request):
         u, m = admin_persona(request)
-        if re.fullmatch(r"ref_\d+\.jpg", nome) and (PERSONA / m / nome).exists():
-            (PERSONA / m / nome).unlink()
+        if re.fullmatch(r"ref_\d+\.jpg", nome):
+            esp.apagar(PERSONA / m / nome)
         return {"ok": True}
 
     @app.post("/api/persona/foto_teste")
@@ -581,6 +585,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 anexos, registro = [voz_mod.anexo_voz(ogg, ms)], "[áudio] " + d["texto"]
                 audio_nome = chave + ".ogg"
                 (AUDIOS / audio_nome).write_bytes(ogg)
+                esp.guardar(AUDIOS / audio_nome)
             except Exception as e:  # noqa: BLE001
                 log.warning("voz falhou na conversa %s (vai texto): %s", conversa_id, e)
         try:
@@ -653,6 +658,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 destino = foto_do_fa(k["marca"], conversa_id)
                 destino.parent.mkdir(parents=True, exist_ok=True)
                 im.save(destino, "JPEG", quality=88)
+                esp.guardar(destino)
                 legenda = "" if texto.startswith("[anexo") else texto
                 texto = ("[o fã mandou uma foto dele] " + legenda).strip()
                 db.exec("UPDATE mensagens SET texto=? WHERE conversa=? AND externo=?", (texto[:4000], conversa_id, ext))
@@ -663,6 +669,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
                 dados = gw.midia(cfg.conta_base + int(k["usuario"]), k["id"], audio["url"])
                 nome_a = hashlib.sha256(f"{conversa_id}:{ext}".encode()).hexdigest()[:32] + ".ogg"
                 (AUDIOS / nome_a).write_bytes(dados)
+                esp.guardar(AUDIOS / nome_a)
                 db.exec("UPDATE mensagens SET audio=? WHERE conversa=? AND externo=?", (nome_a, conversa_id, ext))
                 texto = voz_mod.texto_da_entrada(vz.ouvir(dados, audio.get("name") or "audio.ogg"))
                 db.exec("UPDATE mensagens SET texto=? WHERE conversa=? AND externo=?", (texto[:4000], conversa_id, ext))
@@ -700,7 +707,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
             raise HTTPException(404, "áudio não encontrado")
         dono = db.um("""SELECT 1 FROM mensagens m JOIN conversas c ON c.id=m.conversa JOIN contas k ON k.id=c.conta
                         WHERE m.audio=? AND k.usuario=?""", (nome, u["id"]))
-        if not dono or not (AUDIOS / nome).exists():
+        if not dono or not esp.garantir(AUDIOS / nome).exists():
             raise HTTPException(404, "áudio não encontrado")
         cab = (AUDIOS / nome).open("rb").read(12)
         tipo = "audio/mp4" if cab[4:8] == b"ftyp" else "audio/mpeg" if cab[:3] == b"ID3" or cab[:2] == bytes([0xFF, 0xFB]) else "audio/webm" if cab[:4] == bytes([0x1A, 0x45, 0xDF, 0xA3]) else "audio/ogg"
@@ -792,6 +799,7 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         except CanalErro as e:
             raise HTTPException(502, f"não consegui enviar o áudio: {e}")
         (AUDIOS / (chave + ".ogg")).write_bytes(ogg)
+        esp.guardar(AUDIOS / (chave + ".ogg"))
         db.exec("UPDATE conversas SET modo='humano', ultima=? WHERE id=?", (agora(), conv))
         db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado,audio) VALUES(?,?,?,?,?,?)",
                 (conv, "humano:" + chave, "humano", registro, agora(), chave + ".ogg"))
