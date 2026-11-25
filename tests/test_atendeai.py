@@ -375,3 +375,22 @@ def test_skill_pede_audio_com_voz():
     assert d["acao"] == "responder" and d["voz"] is True and d["texto"].startswith("Oi!")
     d2 = atendente.decidir("oi", [{"direcao": "entrada", "texto": "oi"}], s, "WhatsApp", "ia", 0, 0, lambda m: "Oi! Tudo bem?")
     assert d2["voz"] is False
+
+
+def test_apagar_usuario_leva_conversas_audios_e_fotos(ambiente):
+    """Spec 57 §5.1: apagar usuário no /admin desconecta as contas e leva conversas, mensagens, áudios e fotos dos fãs."""
+    from pathlib import Path
+    c, gf, app = ambiente
+    db, cfg = app.state.db, app.state.cfg
+    u = db.um("SELECT * FROM usuarios WHERE email=?", ("loja@x.com",))
+    agora_ = time.time()
+    db.exec("INSERT INTO contas(id,usuario,marca,provider,segredo_webhook,criado,atualizado) VALUES(?,?,?,?,?,?,?)",
+            ("k-apagar", u["id"], "whats", "whatsapp", "s", agora_, agora_))
+    db.exec("INSERT INTO conversas(conta,externo,ultima) VALUES(?,?,?)", ("k-apagar", "e1", agora_))
+    cid = db.um("SELECT id FROM conversas WHERE conta=?", ("k-apagar",))["id"]
+    audios = Path(cfg.dados) / "audios"; audios.mkdir(parents=True, exist_ok=True); (audios / "a1.ogg").write_bytes(b"x")
+    db.exec("INSERT INTO mensagens(conversa,externo,direcao,texto,criado,audio) VALUES(?,?,?,?,?,?)", (cid, "m1", "ia", "oi", agora_, "a1.ogg"))
+    foto = Path(cfg.dados) / "persona" / "whats" / "fas" / f"{cid}.jpg"; foto.parent.mkdir(parents=True, exist_ok=True); foto.write_bytes(b"x")
+    assert app.state.apagar_arquivos_usuario(u) == 2
+    assert not (audios / "a1.ogg").exists() and not foto.exists()
+    assert not db.um("SELECT 1 AS x FROM conversas WHERE conta=?", ("k-apagar",)) and not db.um("SELECT 1 AS x FROM contas WHERE id=?", ("k-apagar",))

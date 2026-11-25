@@ -153,6 +153,22 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
         db.exec("DELETE FROM conversas WHERE conta=?", (k["id"],))
         db.exec("DELETE FROM contas WHERE id=?", (k["id"],))
 
+    def apagar_arquivos_usuario(u: dict) -> int:
+        """Apagar usuário no /admin (spec 57 §5.1): desconecta as contas no gateway e leva conversas, mensagens, áudios e
+        fotos dos fãs (disco e MinIO). As linhas com coluna `usuario` o admin apaga depois."""
+        n = 0
+        for k in db.todos("SELECT * FROM contas WHERE usuario=?", (u["id"],)):
+            for c in db.todos("SELECT id FROM conversas WHERE conta=?", (k["id"],)):
+                for m in db.todos("SELECT audio FROM mensagens WHERE conversa=? AND COALESCE(audio, '') <> ''", (c["id"],)):
+                    esp.apagar(AUDIOS / m["audio"]); n += 1
+                foto = foto_do_fa(k["marca"], c["id"])
+                if foto.exists() or esp.ativo:
+                    esp.apagar(foto); n += 1
+            apagar_conta(u, k)
+        return n
+
+    app.state.apagar_arquivos_usuario = apagar_arquivos_usuario
+
     def limpar_tentativas(u: dict, marca: str) -> None:
         """Tentativa que nunca conectou não fica guardada: some ao começar outra."""
         for k in db.todos("SELECT * FROM contas WHERE usuario=? AND marca=? AND ja_conectou=0", (u["id"], marca)):
