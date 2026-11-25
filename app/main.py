@@ -21,7 +21,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from app import atendente, auth, mailer, senha_rotas
+from app import admin, atendente, auth, mailer, senha_rotas
 from produtos_core import acesso, armazenamento
 from app import persona as pers
 from app import voz as voz_mod
@@ -1038,6 +1038,15 @@ def criar_app(cfg: Config | None = None, gateway: Gateway | None = None, llm=Non
     @app.get("/termos", response_class=HTMLResponse)
     def termos(request: Request):
         return pagina("termos.html", request)
+
+    # /admin padrão (spec 57 §5): o mesmo dos outros produtos; a coluna "plano" mostra canal:plano
+    admin.preparar(db)
+    app.include_router(admin.rotas(db, cfg.segredo_sessao, """SELECT u.email, u.criado, a.marca || ':' || a.plano AS plano, a.ativo_ate, (a.ativo_ate > strftime('%s','now')) ativo
+        FROM usuarios u LEFT JOIN assinaturas a ON a.usuario=u.id ORDER BY u.criado DESC""", seguro=not cfg.dev))
+
+    @app.get("/admin", response_class=HTMLResponse)
+    def pagina_admin():
+        return FileResponse(ESTATICO / "admin.html")
 
     app.mount("/s", StaticFiles(directory=ESTATICO), name="estatico")
     return app
