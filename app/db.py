@@ -1,7 +1,9 @@
 """Banco do Atende AI: SQLite num volume (/data). Hora em epoch (s)."""
 from __future__ import annotations
 
+import os
 import sqlite3
+import uuid
 import threading
 import time
 from contextlib import contextmanager
@@ -88,31 +90,14 @@ CREATE TABLE IF NOT EXISTS ajustes (chave TEXT PRIMARY KEY, valor TEXT NOT NULL)
 """
 
 
-class Banco:
+class BancoSQLite:
     def __init__(self, caminho: str):
         self._trava = threading.Lock()
         self.con = sqlite3.connect(caminho, check_same_thread=False, isolation_level=None)
         self.con.row_factory = sqlite3.Row
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.executescript(ESQUEMA)
-        cols = {r[1] for r in self.con.execute("PRAGMA table_info(contas)")}
-        if "ja_conectou" not in cols:  # só entra na lista a conta que conectou ao menos uma vez (16/11)
-            self.con.execute("ALTER TABLE contas ADD COLUMN ja_conectou INTEGER NOT NULL DEFAULT 0")
-            self.con.execute("UPDATE contas SET ja_conectou=1 WHERE estado IN ('connected','degraded','reauth_required')")
-        if "so_liberadas" not in cols:  # modo teste: a IA só responde conversas liberadas uma a uma (16/11)
-            self.con.execute("ALTER TABLE contas ADD COLUMN so_liberadas INTEGER NOT NULL DEFAULT 0")
-        if "voz_modo" not in cols:  # resposta em áudio: desligado | quando_audio | sempre (plano Voz, 16/11)
-            self.con.execute("ALTER TABLE contas ADD COLUMN voz_modo TEXT NOT NULL DEFAULT 'desligado'")
-            self.con.execute("ALTER TABLE contas ADD COLUMN voz_id TEXT NOT NULL DEFAULT ''")
-        scols = {r[1] for r in self.con.execute("PRAGMA table_info(skills)")}
-        if scols and "desligadas" not in scols:  # skills (seções ## do texto) desligadas pelo dono (16/11)
-            self.con.execute("ALTER TABLE skills ADD COLUMN desligadas TEXT NOT NULL DEFAULT '[]'")
-        mcols = {r[1] for r in self.con.execute("PRAGMA table_info(mensagens)")}
-        if "audio" not in mcols:  # nome do arquivo de áudio (resposta em voz ou áudio do cliente) para tocar no painel
-            self.con.execute("ALTER TABLE mensagens ADD COLUMN audio TEXT NOT NULL DEFAULT ''")
-        ccols = {r[1] for r in self.con.execute("PRAGMA table_info(conversas)")}
-        if "liberada" not in ccols:
-            self.con.execute("ALTER TABLE conversas ADD COLUMN liberada INTEGER NOT NULL DEFAULT 0")
+        _migrar_esquema(self)
 
     @contextmanager
     def tx(self):
@@ -141,3 +126,40 @@ class Banco:
 
 def agora() -> float:
     return time.time()
+
+
+def Banco(caminho: str):
+    """Postgres central (banco `produtos`, schema do produto) quando PRODUTOS_DATABASE_URL existe; senão o SQLite de antes
+    (plano de volta). Spec 57, seção 8. PRODUTOS_SCHEMA_TESTE=1 dá um schema novo por instância (testes isolados)."""
+    dsn = os.environ.get("PRODUTOS_DATABASE_URL")
+    if not dsn:
+        return BancoSQLite(caminho)
+    from produtos_core.banco_pg import Banco as BancoPG
+    schema = os.environ.get("PRODUTOS_SCHEMA", "atendeai")
+    if os.environ.get("PRODUTOS_SCHEMA_TESTE"):
+        schema = "teste_" + uuid.uuid4().hex[:10]
+    b = BancoPG(dsn, schema, ESQUEMA)
+    _migrar_esquema(b)
+    return b
+
+
+def _migrar_esquema(self):
+    """Migrações de coluna e tabela (rodam no SQLite e no Postgres; spec 57)."""
+    cols = {r[1] for r in self.con.execute("PRAGMA table_info(contas)")}
+    if "ja_conectou" not in cols:  # só entra na lista a conta que conectou ao menos uma vez (16/11)
+        self.con.execute("ALTER TABLE contas ADD COLUMN ja_conectou INTEGER NOT NULL DEFAULT 0")
+        self.con.execute("UPDATE contas SET ja_conectou=1 WHERE estado IN ('connected','degraded','reauth_required')")
+    if "so_liberadas" not in cols:  # modo teste: a IA só responde conversas liberadas uma a uma (16/11)
+        self.con.execute("ALTER TABLE contas ADD COLUMN so_liberadas INTEGER NOT NULL DEFAULT 0")
+    if "voz_modo" not in cols:  # resposta em áudio: desligado | quando_audio | sempre (plano Voz, 16/11)
+        self.con.execute("ALTER TABLE contas ADD COLUMN voz_modo TEXT NOT NULL DEFAULT 'desligado'")
+        self.con.execute("ALTER TABLE contas ADD COLUMN voz_id TEXT NOT NULL DEFAULT ''")
+    scols = {r[1] for r in self.con.execute("PRAGMA table_info(skills)")}
+    if scols and "desligadas" not in scols:  # skills (seções ## do texto) desligadas pelo dono (16/11)
+        self.con.execute("ALTER TABLE skills ADD COLUMN desligadas TEXT NOT NULL DEFAULT '[]'")
+    mcols = {r[1] for r in self.con.execute("PRAGMA table_info(mensagens)")}
+    if "audio" not in mcols:  # nome do arquivo de áudio (resposta em voz ou áudio do cliente) para tocar no painel
+        self.con.execute("ALTER TABLE mensagens ADD COLUMN audio TEXT NOT NULL DEFAULT ''")
+    ccols = {r[1] for r in self.con.execute("PRAGMA table_info(conversas)")}
+    if "liberada" not in ccols:
+        self.con.execute("ALTER TABLE conversas ADD COLUMN liberada INTEGER NOT NULL DEFAULT 0")
