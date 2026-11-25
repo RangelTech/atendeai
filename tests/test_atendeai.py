@@ -1,4 +1,5 @@
 """Atende AI ponta a ponta com gateway de canais falso e IA falsa (sem rede, sem WhatsApp)."""
+from produtos_core.teste import entrar
 import datetime as dt
 import hashlib
 import hmac
@@ -71,8 +72,7 @@ def ambiente(tmp_path):
     gw = Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler))
     app = criar_app(cfg, gateway=gw, llm=llm_falso, sincrono=True)
     c = TestClient(app, base_url="http://atende-whats.rangeltech.net")
-    cod = c.post("/api/entrar/codigo", json={"email": "loja@x.com"}).json()["codigo_dev"]
-    assert c.post("/api/entrar", json={"email": "loja@x.com", "codigo": cod}).status_code == 200
+    entrar(c, "loja@x.com")
     return c, gf, app
 
 
@@ -197,8 +197,7 @@ def test_outro_usuario_nao_ve_conta(ambiente, tmp_path):
     c, _, app = ambiente
     cid, _ = preparar_conta(c, app)
     c2 = TestClient(app, base_url="http://atende-whats.rangeltech.net")
-    cod = c2.post("/api/entrar/codigo", json={"email": "outro@x.com"}).json()["codigo_dev"]
-    c2.post("/api/entrar", json={"email": "outro@x.com", "codigo": cod})
+    entrar(c2, "outro@x.com")
     assert c2.get(f"/api/contas/{cid}").status_code == 404
     assert c2.get("/api/contas").json()["contas"] == []
 
@@ -269,8 +268,7 @@ def test_fluxo_qr_so_no_whatsapp(tmp_path):
     app = criar_app(cfg, gateway=Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler)), llm=llm_falso, sincrono=True)
     for host, prod, esperado in (("atende-whats", "p-w", "phone"), ("atende-insta", "p-i", None), ("atende-face", "p-f", None)):
         c = TestClient(app, base_url=f"http://{host}.rangeltech.net")
-        cod = c.post("/api/entrar/codigo", json={"email": "loja@x.com"}).json()["codigo_dev"]
-        c.post("/api/entrar", json={"email": "loja@x.com", "codigo": cod})
+        entrar(c, "loja@x.com")
         c.post("/api/cakto", json={"secret": "ck", "event": "purchase_approved", "data": {"id": "ped-" + prod, "customer": {"email": "loja@x.com"}, "product": {"id": prod}}})
         assert c.post("/api/contas", json={"aceite": True, "fluxo": "phone"}).status_code == 200
         assert gf.fluxos[-1] == esperado, host
@@ -336,8 +334,7 @@ def test_audio_entra_transcrito_e_sai_nota_de_voz(tmp_path):
                  planos_por_produto={"p-whats-pro": "whats:pro"}, demo_email="")
     app = criar_app(cfg, gateway=Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler)), llm=llm_falso, sincrono=True, voz=vf)
     c = TestClient(app, base_url="http://atende-whats.rangeltech.net")
-    cod = c.post("/api/entrar/codigo", json={"email": "loja@x.com"}).json()["codigo_dev"]
-    c.post("/api/entrar", json={"email": "loja@x.com", "codigo": cod})
+    entrar(c, "loja@x.com")
     cid, seg = preparar_conta(c, app)
     app.state.db.exec("UPDATE contas SET voz_id='dono' WHERE id=?", (cid,))
     assert c.post(f"/api/contas/{cid}/voz_quando_audio").json()["voz_modo"] == "quando_audio"

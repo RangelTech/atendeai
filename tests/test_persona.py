@@ -1,4 +1,5 @@
 """Fala Fael: fã por número, teste grátis, convite, Cakto pelo celular, foto e painel do admin (gateway e IA falsos)."""
+from produtos_core.teste import entrar
 import io
 import json
 import os
@@ -51,8 +52,7 @@ def fael(tmp_path):
     gw = Gateway("http://gw", "tok", transport=httpx.MockTransport(gf.handler))
     app = criar_app(cfg, gateway=gw, llm=llm_fael, sincrono=True)
     c = TestClient(app, base_url="http://fala-fael.rangeltech.net")
-    cod = c.post("/api/entrar/codigo", json={"email": "admin@fael.com"}).json()["codigo_dev"]
-    c.post("/api/entrar", json={"email": "admin@fael.com", "codigo": cod})
+    entrar(c, "admin@fael.com")
     db = app.state.db
     uid = db.um("SELECT id FROM usuarios WHERE email='admin@fael.com'")["id"]
     db.exec("INSERT INTO assinaturas(usuario,marca,plano,ativo_ate) VALUES(?,?,?,?)", (uid, "fael", "turbo", time.time() + 86400))
@@ -128,8 +128,7 @@ def test_foto_gerada_vai_como_imagem(fael, monkeypatch):
 def test_painel_so_para_admin(fael):
     c, gf, app, *_ = fael
     c2 = TestClient(app, base_url="http://fala-fael.rangeltech.net")
-    cod = c2.post("/api/entrar/codigo", json={"email": "curioso@x.com"}).json()["codigo_dev"]
-    c2.post("/api/entrar", json={"email": "curioso@x.com", "codigo": cod})
+    entrar(c2, "curioso@x.com")
     assert c2.get("/api/persona").status_code == 403
     assert c.post("/api/persona/fas", json={"telefone": "11 91234-5678", "plano": "vip", "dias": 30}).json()["ok"]
     assert c.get("/api/persona").json()["ativos"] == 1
